@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Anesthesia Preference Card</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ── Theme tokens ───────────────────────────────────────────────────── */
+:root {
+  --p:  #1B3669; --pl: #EBF0F8; --pd: #0D1E3D; --pm: #2B5BA8; --pb: #B0C4DE;
+  --bg: #ffffff; --bgp: #f1f4f8; --bga: #f7f9fc;
+  --tx: #111827; --txm: #5a6a80; --bd: #cfd8e3; --sha: rgba(0,0,0,0.07);
+}
+[data-theme="dark"] {
+  --p:  #4A84D4; --pl: #182340; --pd: #A8C4E8; --pm: #5A94E8; --pb: #263B60;
+  --bg: #111C30; --bgp: #0B1220; --bga: #162036;
+  --tx: #E4EDF8; --txm: #7B9CC4; --bd: #243050; --sha: rgba(0,0,0,0.3);
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bgp);color:var(--tx);min-height:100vh;font-size:15px;line-height:1.5;transition:background 0.2s,color 0.2s}
+
+/* ── App shell ──────────────────────────────────────────────────────── */
+#app{max-width:700px;margin:0 auto;display:flex;flex-direction:column;min-height:100vh}
+@media(min-width:720px){#app{margin:16px auto;min-height:unset;border-radius:14px;overflow:hidden;box-shadow:0 4px 28px var(--sha)}}
+
+/* ── Sticky top (header + progress + tabs) ──────────────────────────── */
+.sticky-top{position:sticky;top:0;z-index:100;box-shadow:0 2px 8px var(--sha)}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.hdr{background:var(--p);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;transition:background 0.2s}
+.hdr-l{min-width:0;flex:1}
+.hdr-title{color:#fff;font-size:13.5px;font-weight:700;letter-spacing:0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-sub{color:rgba(255,255,255,0.55);font-size:10.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-btns{display:flex;gap:5px;flex-shrink:0}
+.hbtn{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);color:#fff;border-radius:8px;padding:0 11px;height:36px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background 0.12s}
+.hbtn:active{background:rgba(255,255,255,0.28)}
+.hbtn.icon{width:36px;padding:0;justify-content:center;font-size:17px}
+
+/* ── Progress ───────────────────────────────────────────────────────── */
+.prog{height:3px;background:rgba(255,255,255,0.18)}
+.prog-fill{height:100%;background:rgba(255,255,255,0.75);transition:width 0.35s}
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--bd);overflow-x:auto;scrollbar-width:none;transition:background 0.2s}
+.tabs::-webkit-scrollbar{display:none}
+.tbtn{flex:0 0 auto;padding:0 13px;height:44px;font-size:12px;font-weight:500;border:none;border-bottom:2.5px solid transparent;background:transparent;color:var(--txm);cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.12s}
+.tbtn.active{color:var(--p);border-bottom-color:var(--p);font-weight:700}
+
+/* ── Content ────────────────────────────────────────────────────────── */
+.content{flex:1;background:var(--bg);padding:16px;transition:background 0.2s}
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── Section headers ────────────────────────────────────────────────── */
+.sh{display:flex;align-items:center;gap:8px;margin:20px 0 11px;padding-bottom:8px;border-bottom:2px solid var(--p)}
+.sh.first{margin-top:0}
+.sh-lbl{font-size:13px;font-weight:700;color:var(--tx);letter-spacing:0.01em}
+
+/* ── Field groups ───────────────────────────────────────────────────── */
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:10.5px;font-weight:700;color:var(--txm);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.07em}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+@media(max-width:420px){.g2{grid-template-columns:1fr}}
+
+/* ── Form elements ──────────────────────────────────────────────────── */
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--tx);background:var(--bga);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;width:100%;outline:none;transition:border-color 0.15s,box-shadow 0.15s,background 0.2s;-webkit-appearance:none;appearance:none}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a6a80' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input:focus,select:focus,textarea:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(27,54,105,0.13);background:var(--bg)}
+[data-theme="dark"] input:focus,[data-theme="dark"] select:focus,[data-theme="dark"] textarea:focus{box-shadow:0 0 0 3px rgba(74,132,212,0.22)}
+textarea{resize:vertical;line-height:1.5;min-height:70px}
+
+/* ── Pills ──────────────────────────────────────────────────────────── */
+.pills{display:flex;flex-wrap:wrap;gap:7px;padding:2px 0}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:22px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--bd);background:var(--bga);color:var(--txm);font-family:inherit;transition:all 0.12s;-webkit-tap-highlight-color:transparent;min-height:38px;user-select:none}
+.pill:active{transform:scale(0.96)}
+.pill.on{border-color:var(--p);background:var(--pl);color:var(--p);font-weight:700;border-width:1.5px}
+[data-theme="dark"] .pill.on{color:var(--pm)}
+.pill-ck{font-size:11px;display:none}
+.pill.on .pill-ck{display:inline}
+
+/* ── Nav ────────────────────────────────────────────────────────────── */
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:22px;padding-top:14px;border-top:1px solid var(--bd);gap:10px}
+.nav-info{font-size:11px;color:var(--txm);text-align:center;flex:1}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 18px;height:44px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid var(--bd);background:var(--bg);color:var(--tx);font-family:inherit;transition:all 0.12s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn:active{opacity:0.78;transform:scale(0.97)}
+.btn:disabled{opacity:0.3;cursor:default}
+.btn-p{background:var(--p);color:#fff;border-color:var(--p)}
+.btn-o{border-color:var(--p);color:var(--p);background:transparent}
+[data-theme="dark"] .btn-o{color:var(--pm);border-color:var(--pm)}
+
+/* ── Export panel ───────────────────────────────────────────────────── */
+.exp{margin-top:20px;padding:15px;background:var(--pl);border-radius:12px;border:1px solid var(--pb)}
+.exp-title{font-size:12.5px;font-weight:700;color:var(--p);margin-bottom:11px}
+[data-theme="dark"] .exp-title{color:var(--pm)}
+.exp-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:0}
+.exp-row .btn{flex:1 1 110px}
+.div{border:none;border-top:1px solid var(--pb);margin:13px 0}
+.eml-row{display:flex;gap:8px;align-items:flex-end}
+.eml-row .fg{flex:1;margin-bottom:0}
+.exp-note{font-size:11.5px;color:var(--txm);margin-top:9px;line-height:1.6}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--pd);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;max-width:320px;width:90%;text-align:center;transition:transform 0.25s ease;pointer-events:none}
+[data-theme="dark"] #toast{background:var(--pm)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Modal ──────────────────────────────────────────────────────────── */
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:flex-start;justify-content:center;padding:18px 10px;overflow-y:auto}
+#modal.open{display:flex}
+.mbox{background:var(--bg);border-radius:14px;width:100%;max-width:700px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3)}
+.mhdr{background:var(--p);padding:11px 15px;display:flex;justify-content:space-between;align-items:center}
+.mhdr span{color:#fff;font-size:13.5px;font-weight:700}
+.mhdr-btns{display:flex;gap:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="sticky-top">
+    <div class="hdr">
+      <div class="hdr-l">
+        <div class="hdr-title">Anesthesia Preference Card</div>
+        <div class="hdr-sub" id="hdrSub">Fill in each section to build a card</div>
+      </div>
+      <div class="hdr-btns">
+        <button class="hbtn icon" id="themeBtn" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
+        <button class="hbtn" onclick="doPrint()">🖨</button>
+        <button class="hbtn" onclick="exportXLSX()">⬇</button>
+      </div>
+    </div>
+    <div class="prog"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+    <div class="tabs" id="tabNav"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- Panel 0 -->
+    <div class="panel active" id="panel-0">
+      <div class="sh first"><span>👤</span><span class="sh-lbl">Surgeon &amp; Procedure</span></div>
+      <div class="g2">
+        <div class="fg"><label>First Name</label><input type="text" id="surgeonFirst" placeholder="e.g. John" oninput="updateHeader()" autocomplete="given-name"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="surgeonLast" placeholder="e.g. Smith" oninput="updateHeader()" autocomplete="family-name"></div>
+      </div>
+      <div class="fg"><label>Procedure</label><input type="text" id="procedure" placeholder="e.g. Laparoscopic donor nephrectomy" oninput="updateHeader()"></div>
+      <div class="g2">
+        <div class="fg"><label>Case Type</label>
+          <select id="caseType">
+            <option value="">Select...</option>
+            <option>Elective</option><option>Urgent</option><option>Emergent</option>
+            <option>Outpatient (same-day)</option><option>Inpatient</option>
+          </select>
+        </div>
+        <div class="fg"><label>Date Created</label><input type="date" id="dateCreated"></div>
+      </div>
+      <div class="fg"><label>Institution</label><div class="pills" id="pills-institution"></div></div>
+
+      <div class="sh"><span>🩻</span><span class="sh-lbl">Anesthesia Technique</span></div>
+      <div class="fg"><label>Select Technique(s)</label><div class="pills" id="pills-technique"></div></div>
+
+      <div class="sh"><span>🛏</span><span class="sh-lbl">Positioning</span></div>
+      <div class="fg"><label>Position</label><div class="pills" id="pills-position"></div></div>
+      <div class="fg"><label>Position Notes</label><textarea id="positionNotes" placeholder="e.g. Right lateral decubitus, bean bag, axillary roll, all pressure points padded..."></textarea></div>
+    </div>
+
+    <!-- Panel 1 -->
+    <div class="panel" id="panel-1">
+      <div class="sh first"><span>💨</span><span class="sh-lbl">Airway Management</span></div>
+      <div class="fg"><label>Airway Device</label><div class="pills" id="pills-airway"></div></div>
+      <div class="g2">
+        <div class="fg"><label>ET Tube / LMA Size</label>
+          <select id="etSize">
+            <option value="">Select size...</option>
+            <option>5.5</option><option>6.0</option><option>6.5</option><option>7.0</option>
+            <option>7.5</option><option>8.0</option><option>8.5</option><option>9.0</option>
+            <option>Custom / TBD</option>
+          </select>
+        </div>
+        <div class="fg"><label>Extubation Plan</label>
+          <select id="extPlan">
+            <option value="">Select...</option>
+            <option>Awake extubation</option><option>Deep extubation</option>
+            <option>Criteria-based</option><option>Remain intubated → ICU</option>
+          </select>
+        </div>
+      </div>
+      <div class="sh"><span>💧</span><span class="sh-lbl">IV &amp; Vascular Access</span></div>
+      <div class="fg"><label>Peripheral IV</label><div class="pills" id="pills-pivOpts"></div></div>
+      <div class="fg"><label>PIV Sites</label><div class="pills" id="pills-pivSites"></div></div>
+      <div class="fg"><label>PIV Site Notes</label><textarea id="pivSiteNotes" placeholder="e.g. Antecubital veins prominent bilaterally; or US-guided recommended..."></textarea></div>
+      <div class="fg"><label>Arterial Line &amp; Central Access</label><div class="pills" id="pills-lines"></div></div>
+    </div>
+
+    <!-- Panel 2 -->
+    <div class="panel" id="panel-2">
+      <div class="sh first"><span>💉</span><span class="sh-lbl">Premedications</span></div>
+      <div class="fg"><label>Premed Checklist</label><div class="pills" id="pills-premeds"></div></div>
+      <div class="fg"><label>Premed Notes</label><textarea id="premedNotes" placeholder="Timing, hold opioids, special instructions..."></textarea></div>
+      <div class="sh"><span>⚡</span><span class="sh-lbl">Induction</span></div>
+      <div class="fg"><label>Induction Agents</label><div class="pills" id="pills-induction"></div></div>
+      <div class="fg"><label>Induction Notes</label><textarea id="inductionNotes" placeholder="RSI, modified RSI, awake approach, dosing adjustments..."></textarea></div>
+      <div class="sh"><span>⚙</span><span class="sh-lbl">Maintenance</span></div>
+      <div class="fg"><label>Maintenance Agent(s)</label><div class="pills" id="pills-maint"></div></div>
+      <div class="fg"><label>TIVA / Adjunct Infusions</label><div class="pills" id="pills-tiva"></div></div>
+      <div class="fg"><label>Maintenance Notes</label><textarea id="maintNotes" placeholder="Air/O₂ ratio, EtCO₂ target, BIS range, fluid rate..."></textarea></div>
+      <div class="sh"><span>🛡</span><span class="sh-lbl">PONV Prophylaxis</span></div>
+      <div class="fg"><label>PONV Agents</label><div class="pills" id="pills-ponv"></div></div>
+      <div class="fg"><label>PONV Notes</label><textarea id="ponvNotes" placeholder="Apfel score, timing of agents..."></textarea></div>
+    </div>
+
+    <!-- Panel 3 -->
+    <div class="panel" id="panel-3">
+      <div class="sh first"><span>🩺</span><span class="sh-lbl">Regional Anesthesia &amp; Blocks</span></div>
+      <div class="fg"><label>Block / Neuraxial Selection</label><div class="pills" id="pills-blocks"></div></div>
+      <div class="fg"><label>Regional Notes</label><textarea id="blocksNotes" placeholder="Local anesthetic, concentration, adjuvants, timing, US-guided vs landmark..."></textarea></div>
+      <div class="sh"><span>🧪</span><span class="sh-lbl">Intraoperative Medications</span></div>
+      <div class="fg"><label>Intraop Drug Checklist</label><div class="pills" id="pills-intraop"></div></div>
+      <div class="fg"><label>Intraop Notes</label><textarea id="intraopNotes" placeholder="Fluid strategy, hemodynamic targets, blood products, transfusion triggers..."></textarea></div>
+      <div class="sh"><span>🔄</span><span class="sh-lbl">NMB Reversal</span></div>
+      <div class="fg"><label>Reversal Plan</label><div class="pills" id="pills-reversal"></div></div>
+    </div>
+
+    <!-- Panel 4 -->
+    <div class="panel" id="panel-4">
+      <div class="sh first"><span>📟</span><span class="sh-lbl">Equipment &amp; Monitoring</span></div>
+      <div class="fg"><label>Special Equipment Required</label><div class="pills" id="pills-equip"></div></div>
+      <div class="fg"><label>Equipment Notes</label><textarea id="equipNotes" placeholder="Room setup, equipment sourcing, special configurations..."></textarea></div>
+      <div class="sh"><span>⚠</span><span class="sh-lbl">Key Concerns</span></div>
+      <div class="fg"><label>Key Anesthetic Concerns</label><textarea id="keyConcerns" style="min-height:90px" placeholder="Difficult airway, full stomach, cardiac history, drug sensitivities, surgeon preferences..."></textarea></div>
+      <div class="sh"><span>📝</span><span class="sh-lbl">General Notes</span></div>
+      <div class="fg"><label>Additional Notes for the Team</label><textarea id="generalNotes" placeholder="Any additional information for the anesthesia team..."></textarea></div>
+
+      <div class="sh"><span>✍️</span><span class="sh-lbl">Submitted By</span></div>
+      <div class="g2">
+        <div class="fg"><label>First Name</label><input type="text" id="submitterFirst" placeholder="Your first name" autocomplete="given-name"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="submitterLast" placeholder="Your last name" autocomplete="family-name"></div>
+      </div>
+      <div style="background:var(--pl);border:1px solid var(--pb);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--p);font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:16px">ℹ️</span>
+        <span>All submissions will be reviewed.</span>
+      </div>
+
+      <div class="exp">
+        <div class="exp-title">Export &amp; Print</div>
+        <div class="exp-row">
+          <button class="btn btn-p" onclick="exportXLSX()">⬇ Excel</button>
+          <button class="btn btn-o" onclick="openPreview()">👁 Preview</button>
+          <button class="btn btn-o" onclick="doPrint()">🖨 Print / PDF</button>
+        </div>
+        <hr class="div">
+        <div style="font-size:12px;font-weight:700;color:var(--p);margin-bottom:8px">✉ Send by Email</div>
+        <div class="eml-row">
+          <div class="fg"><label>Recipient</label><input type="email" id="recipientEmail" value="tony.kim@bcm.edu" autocomplete="email"></div>
+          <button class="btn btn-p" onclick="sendEmail()" style="flex-shrink:0">Send</button>
+        </div>
+        <div class="exp-note">Clicking Send downloads the Excel file and opens your email client pre-filled with the card summary. Attach the Excel file before sending.</div>
+      </div>
+
+      <div style="margin-top:14px;text-align:center">
+        <button class="btn" onclick="clearForm()" style="color:var(--txm);font-size:13px;height:40px;border-color:var(--bd)">🗑 Clear all fields</button>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" id="btnPrev" onclick="changeTab(-1)" disabled>← Prev</button>
+      <span class="nav-info" id="navInfo">1 / 5</span>
+      <button class="btn btn-p" id="btnNext" onclick="changeTab(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="modal">
+  <div class="mbox">
+    <div class="mhdr">
+      <span>Card Preview</span>
+      <div class="mhdr-btns">
+        <button class="hbtn" onclick="doPrint()">🖨 Print/PDF</button>
+        <button class="hbtn icon" onclick="closePreview()">✕</button>
+      </div>
+    </div>
+    <iframe id="previewFrame" style="width:100%;height:65vh;min-height:380px;border:none" title="Preview"></iframe>
+  </div>
+</div>
+
+<script>
+const D={
+  institution:['BSLMC','Ben Taub','VA','TCH'],
+  technique:  ['Bier Block','Epidural','General','MAC','Regional','Spinal','TIVA'],
+  position:   ['Supine','Lateral (L)','Lateral (R)','Prone','Lithotomy','Trendelenburg','Reverse Trendelenburg','Beach chair','Sitting','Prone-jackknife'],
+  airway:     ['Oral ETT','Nasal ETT','Nasal RAE','ETT MLT','Wire reinforced ETT','LMA Classic/Supreme','LMA with gastric port','Bronchial blocker','Awake FOB intubation','DLT – left','DLT – right','Tracheostomy tube','Natural airway / MAC'],
+  pivOpts:    ['20g PIV × 1','18g PIV × 1','18g PIV × 2','16g PIV × 1','16g PIV × 2','14g PIV × 1'],
+  pivSites:   ['Antecubital','Forearm','Hand','External jugular'],
+  lines:      ['Radial a-line (R)','Radial a-line (L)','Femoral a-line','CVL – RIJ','CVL – LIJ','CVL – subclavian','CVL – femoral','MAC line'],
+  premeds:    ['Midazolam 2mg IV','Midazolam 1mg IV','Fentanyl 50mcg IV','Scopolamine patch 1.5mg','Famotidine 20mg IV','Metoclopramide 10mg IV','Acetaminophen 1000mg PO','Celecoxib 400mg PO','Gabapentin 300mg PO','Gabapentin 600mg PO','Alvimopan 12mg PO'],
+  induction:  ['Propofol 1–2 mg/kg','Ketamine 1–2 mg/kg','Etomidate 0.3 mg/kg','Lidocaine 1.5 mg/kg IV','Fentanyl 1–3 mcg/kg','Succinylcholine 1.5 mg/kg','Rocuronium 0.6 mg/kg','Rocuronium 1.2 mg/kg (RSI)','Vecuronium 0.1 mg/kg','Cisatracurium 0.2 mg/kg'],
+  maint:      ['Sevoflurane','Desflurane','Isoflurane','N₂O','TIVA (propofol)','Partial TIVA'],
+  tiva:       ['Propofol infusion','Ketamine 0.2–0.4 mg/kg/hr','Lidocaine 2–4 mg/min','Dexmedetomidine 0.3–0.5 mcg/kg/hr','Remifentanil 0.05–0.2 mcg/kg/min'],
+  ponv:       ['Dexamethasone 4mg IV','Dexamethasone 8mg IV','Ondansetron 4mg IV','Scopolamine patch 1.5mg','Droperidol 0.625mg IV','Promethazine 6.25mg IV','Diphenhydramine 12.5mg IV','Haloperidol 1mg IV','TIVA (antiemetic effect)'],
+  blocks:     ['Spinal','Epidural','CSE','IT morphine 150mcg','IT morphine 200mcg','TAP – bilateral','TAP – unilateral','QLB','Erector spinae plane','Paravertebral','Interscalene','Supraclavicular','Axillary block','Femoral nerve block','Adductor canal block','Popliteal sciatic','Pec I / Pec II','Serratus anterior'],
+  intraop:    ['Cefazolin 2g IV','Cefazolin 3g IV (>80 kg)','Vancomycin 15 mg/kg IV','Heparin 5,000u SQ (DVT)','Systemic heparin','Protamine (per heparin)','Mannitol 0.5 g/kg','Mannitol 1 g/kg','Furosemide 20mg IV','Phenylephrine PRN','Ephedrine PRN','Norepinephrine infusion','Vasopressin 20u','Esmolol bolus / infusion','Labetalol 5–10mg IV','Metoprolol 1–5mg IV','Nicardipine infusion','Ketorolac 30mg IV','Acetaminophen 1000mg IV','Magnesium 2g IV','Dexamethasone 8mg IV','Insulin (per glucose)'],
+  reversal:   ['Sugammadex 200mg IV','Sugammadex 4 mg/kg IV','Neostigmine + glycopyrrolate','Remain intubated – no reversal'],
+  equip:      ['Arterial line kit','CVL kit','PA catheter','TEE probe','BIS monitor','NMT/TOF monitor','Bair Hugger – upper body','Bair Hugger – lower body','Cell saver','Level 1 rapid infuser','Belmont infuser','Fiberoptic bronchoscope','GlideScope / video laryngoscope','Foley catheter','OG tube','NG tube','Temperature probe (esophageal)','SCDs + compression stockings','Axillary roll','Shoulder rolls','Eye tape / goggles','Padded arm boards'],
+};
+
+const SINGLE=new Set(['position','institution']);
+const sel={};
+Object.keys(D).forEach(k=>sel[k]=[]);
+const TABS=['Basic Info','Airway & Access','Medications','Regional & Intraop','Equipment & Notes'];
+let cur=0;
+
+window.onload=()=>{
+  document.getElementById('dateCreated').value=new Date().toISOString().slice(0,10);
+  const saved=localStorage.getItem('apc-theme')||'light';
+  document.documentElement.dataset.theme=saved;
+  document.getElementById('themeBtn').textContent=saved==='dark'?'☀️':'🌙';
+
+  const nav=document.getElementById('tabNav');
+  TABS.forEach((t,i)=>{
+    const b=document.createElement('button');
+    b.className='tbtn'+(i===0?' active':'');
+    b.id=`tb-${i}`;b.textContent=t;b.onclick=()=>goTab(i);
+    nav.appendChild(b);
+  });
+
+  Object.keys(D).forEach(key=>{
+    const c=document.getElementById(`pills-${key}`);if(!c)return;
+    const single=SINGLE.has(key);
+    D[key].forEach(item=>{
+      const b=document.createElement('button');
+      b.className='pill';b.type='button';
+      b.innerHTML=`<span class="pill-ck">✓</span>${item}`;
+      b.addEventListener('click',()=>togglePill(key,item,b,single,c));
+      c.appendChild(b);
+    });
+  });
+  updateProg();
+};
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const next=html.dataset.theme==='dark'?'light':'dark';
+  html.dataset.theme=next;
+  document.getElementById('themeBtn').textContent=next==='dark'?'☀️':'🌙';
+  localStorage.setItem('apc-theme',next);
+}
+
+function togglePill(key,item,btn,single,container){
+  if(single){
+    container.querySelectorAll('.pill').forEach(p=>p.classList.remove('on'));
+    const was=sel[key][0]===item;
+    sel[key]=was?[]:[item];
+    if(!was)btn.classList.add('on');
+  }else{
+    const idx=sel[key].indexOf(item);
+    if(idx===-1){sel[key].push(item);btn.classList.add('on');}
+    else{sel[key].splice(idx,1);btn.classList.remove('on');}
+  }
+  updateProg();
+}
+
+function goTab(i){
+  document.getElementById(`panel-${cur}`).classList.remove('active');
+  document.getElementById(`tb-${cur}`).classList.remove('active');
+  cur=i;
+  document.getElementById(`panel-${i}`).classList.add('active');
+  document.getElementById(`tb-${i}`).classList.add('active');
+  document.getElementById(`tb-${i}`).scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  document.getElementById('btnPrev').disabled=i===0;
+  const nb=document.getElementById('btnNext');
+  if(i===TABS.length-1){nb.textContent='🖨 Print';nb.onclick=doPrint;}
+  else{nb.textContent='Next →';nb.onclick=()=>changeTab(1);}
+  document.getElementById('navInfo').textContent=`${i+1} / ${TABS.length} · ${getPct()}%`;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function changeTab(d){goTab(Math.max(0,Math.min(TABS.length-1,cur+d)));}
+
+function getPct(){
+  return Math.round([!!g('surgeonLast'),!!g('procedure'),sel.institution.length>0,sel.technique.length>0,sel.position.length>0,sel.airway.length>0,sel.induction.length>0,sel.maint.length>0].filter(Boolean).length/8*100);
+}
+function updateProg(){
+  document.getElementById('progFill').style.width=getPct()+'%';
+  document.getElementById('navInfo').textContent=`${cur+1} / ${TABS.length} · ${getPct()}%`;
+}
+function updateHeader(){
+  const sub=document.getElementById('hdrSub');
+  const fn=g('surgeonFirst'),ln=g('surgeonLast'),pr=g('procedure');
+  sub.textContent=(ln&&pr)?`Dr. ${fn} ${ln} · ${pr}`.trim():'Fill in each section to build a card';
+  updateProg();
+}
+function g(id){const e=document.getElementById(id);return e?e.value:'';}
+
+function collect(){
+  return{
+    surgeonFirst:g('surgeonFirst'),surgeonLast:g('surgeonLast'),
+    procedure:g('procedure'),caseType:g('caseType'),dateCreated:g('dateCreated'),
+    institution:sel.institution[0]||'',technique:[...sel.technique],
+    position:sel.position[0]||'',positionNotes:g('positionNotes'),
+    airway:[...sel.airway],etSize:g('etSize'),extPlan:g('extPlan'),
+    pivOpts:[...sel.pivOpts],pivSites:[...sel.pivSites],pivSiteNotes:g('pivSiteNotes'),
+    lines:[...sel.lines],
+    premeds:[...sel.premeds],premedNotes:g('premedNotes'),
+    induction:[...sel.induction],inductionNotes:g('inductionNotes'),
+    maint:[...sel.maint],tiva:[...sel.tiva],maintNotes:g('maintNotes'),
+    ponv:[...sel.ponv],ponvNotes:g('ponvNotes'),
+    blocks:[...sel.blocks],blocksNotes:g('blocksNotes'),
+    intraop:[...sel.intraop],intraopNotes:g('intraopNotes'),
+    reversal:[...sel.reversal],
+    equip:[...sel.equip],equipNotes:g('equipNotes'),
+    keyConcerns:g('keyConcerns'),generalNotes:g('generalNotes'),
+    submitterFirst:g('submitterFirst'),submitterLast:g('submitterLast'),
+  };
+}
+
+function buildXLSX(f){
+  const row={'Surgeon First Name':f.surgeonFirst,'Surgeon Last Name':f.surgeonLast,'Procedure':f.procedure,'Case Type':f.caseType,'Date Created':f.dateCreated,'Institution':f.institution,'Anesthesia Technique':f.technique.join('; '),'Position':f.position,'Position Notes':f.positionNotes,'Airway Device':f.airway.join('; '),'ET / LMA Size':f.etSize,'Extubation Plan':f.extPlan,'PIV':f.pivOpts.join('; '),'PIV Sites':f.pivSites.join('; '),'PIV Site Notes':f.pivSiteNotes,'A-line / CVL':f.lines.join('; '),'Premedications':f.premeds.join('; '),'Premed Notes':f.premedNotes,'Induction':f.induction.join('; '),'Induction Notes':f.inductionNotes,'Maintenance':f.maint.join('; '),'TIVA Infusions':f.tiva.join('; '),'Maintenance Notes':f.maintNotes,'PONV Prophylaxis':f.ponv.join('; '),'PONV Notes':f.ponvNotes,'Regional Blocks':f.blocks.join('; '),'Regional Notes':f.blocksNotes,'Intraop Medications':f.intraop.join('; '),'Intraop Notes':f.intraopNotes,'NMB Reversal':f.reversal.join('; '),'Equipment':f.equip.join('; '),'Equipment Notes':f.equipNotes,'Key Concerns':f.keyConcerns,'General Notes':f.generalNotes,'Submitted By (First)':f.submitterFirst,'Submitted By (Last)':f.submitterLast};
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.json_to_sheet([row]);
+  ws['!cols']=Object.keys(row).map(k=>({wch:Math.min(45,Math.max(14,k.length+4))}));
+  XLSX.utils.book_append_sheet(wb,ws,'Preference Card');
+  const fn=`${(f.surgeonLast||'Card').replace(/\s/g,'_')}_${(f.procedure||'Procedure').replace(/\s+/g,'_')}_${f.dateCreated}.xlsx`;
+  return{wb,fn};
+}
+function exportXLSX(){const f=collect();const{wb,fn}=buildXLSX(f);XLSX.writeFile(wb,fn);showToast('Exported: '+fn);}
+
+function sendEmail(){
+  const f=collect();
+  const to=document.getElementById('recipientEmail').value.trim();
+  if(!to){showToast('Enter a recipient email first');return;}
+  const{wb,fn}=buildXLSX(f);XLSX.writeFile(wb,fn);
+  const dr=`Dr. ${f.surgeonFirst} ${f.surgeonLast}`.trim().replace(/^Dr\. $/,'');
+  const subj=`Anesthesia Preference Card – ${f.procedure||'TBD'} – ${dr}`;
+  const NL='%0D%0A';
+  const lines=['ANESTHESIA PREFERENCE CARD','===========================',`Surgeon:      ${dr||'—'}`,`Procedure:    ${f.procedure||'—'}`,`Institution:  ${f.institution||'—'}`,`Case Type:    ${f.caseType||'—'}`,`Created:      ${f.dateCreated||'—'}`,`Technique:    ${f.technique.join(', ')||'—'}`,'','POSITIONING','—',`Position:     ${f.position||'—'}`,f.positionNotes&&`Notes:        ${f.positionNotes}`,'','AIRWAY & IV ACCESS','—',`Airway:       ${f.airway.join(', ')||'—'}`,`ET/LMA Size:  ${f.etSize||'—'}`,`Extubation:   ${f.extPlan||'—'}`,`PIV:          ${f.pivOpts.join(', ')||'—'}`,`PIV Sites:    ${f.pivSites.join(', ')||'—'}`,f.pivSiteNotes&&`PIV Notes:    ${f.pivSiteNotes}`,`Lines:        ${f.lines.join(', ')||'—'}`,'','MEDICATIONS','—',`Premeds:      ${f.premeds.join(', ')||'—'}`,f.premedNotes&&`              ${f.premedNotes}`,`Induction:    ${f.induction.join(', ')||'—'}`,f.inductionNotes&&`              ${f.inductionNotes}`,`Maintenance:  ${f.maint.join(', ')||'—'}`,f.tiva.length&&`TIVA:         ${f.tiva.join(', ')}`,f.maintNotes&&`              ${f.maintNotes}`,`PONV:         ${f.ponv.join(', ')||'—'}`,'','REGIONAL & INTRAOP','—',`Blocks:       ${f.blocks.join(', ')||'—'}`,f.blocksNotes&&`              ${f.blocksNotes}`,`Intraop Meds: ${f.intraop.join(', ')||'—'}`,f.intraopNotes&&`              ${f.intraopNotes}`,`Reversal:     ${f.reversal.join(', ')||'—'}`,'','EQUIPMENT','—',f.equip.join(', ')||'—',f.equipNotes&&`Notes: ${f.equipNotes}`,f.keyConcerns&&`${NL}KEY CONCERNS${NL}—${NL}${f.keyConcerns}`,f.generalNotes&&`${NL}GENERAL NOTES${NL}—${NL}${f.generalNotes}`,'','— Tony Kim, MD  |  Created '+f.dateCreated,`Submitted by: ${[f.submitterFirst,f.submitterLast].filter(Boolean).join(' ')||'—'}  |  All submissions will be reviewed.`,`[Excel attachment: ${fn}]`].filter(Boolean).join(NL);
+  window.location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${lines}`;
+  showToast('Excel downloaded — attach it to the email that opened');
+}
+
+function buildPrintHTML(f){
+  const surgeon=['Dr.',f.surgeonFirst,f.surgeonLast].filter(x=>x&&x!=='Dr.').join(' ')||'—';
+  const T='#1B3669',TL='#EBF0F8',TD='#0D1E3D',TB='#B0C4DE';
+  function sb(title,rows){return`<div style="margin-bottom:10px;border:1px solid ${TB};border-radius:5px;overflow:hidden;page-break-inside:avoid"><div style="background:${T};padding:5px 11px"><span style="color:white;font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">${title}</span></div><table style="width:100%;border-collapse:collapse">${rows}</table></div>`;}
+  function dr(lbl,val,note,i){if(!val)return'';const bg=i%2===0?'white':TL;const nt=note?`<div style="font-size:9.5px;color:#4b5563;margin-top:2px;font-style:italic">${note}</div>`:'';return`<tr style="background:${bg}"><td style="padding:5px 8px 5px 11px;font-size:9px;font-weight:700;color:${TD};text-transform:uppercase;letter-spacing:0.04em;white-space:nowrap;width:130px;vertical-align:top;border-right:1px solid ${TB}">${lbl}</td><td style="padding:5px 11px 5px 8px;font-size:10.5px;color:#111;line-height:1.5">${val}${nt}</td></tr>`;}
+  const piv=[f.pivOpts.join(', '),f.pivSites.length?`Sites: ${f.pivSites.join(', ')}`:null].filter(Boolean).join(' · ')||'—';
+  const mnt=[f.maint.join(', ')||'—',f.tiva.length?`Infusions: ${f.tiva.join(', ')}`:null].filter(Boolean).join('<br>');
+  let ri=0;
+  const sTech=f.technique.length?sb('Anesthesia Technique',[dr('Technique',f.technique.join(', '),null,ri++)].join('')):'';
+  const sPos=(f.position||f.positionNotes)?sb('Positioning',[dr('Position',f.position||'—',f.positionNotes,ri++)].join('')):'';
+  const sAir=sb('Airway & IV Access',[dr('Airway Device',f.airway.join(', ')||'—',null,ri++),dr('ET / LMA Size',f.etSize||'—',null,ri++),dr('Extubation Plan',f.extPlan||'—',null,ri++),dr('Peripheral IV',piv,f.pivSiteNotes,ri++),f.lines.length?dr('A-line / CVL',f.lines.join(', '),null,ri++):''].join(''));
+  ri=0;
+  const sPre=sb('Premedications',[dr('Medications',f.premeds.join(', ')||'—',f.premedNotes,ri++)].join(''));
+  const sInd=sb('Induction',[dr('Agents',f.induction.join(', ')||'—',f.inductionNotes,ri++)].join(''));
+  const sMnt=sb('Maintenance',[dr('Agent(s)',mnt,f.maintNotes,ri++),dr('PONV',f.ponv.join(', ')||'—',f.ponvNotes,ri++)].join(''));
+  ri=0;
+  const sReg=sb('Regional Anesthesia',[dr('Blocks / Neuraxial',f.blocks.join(', ')||'—',f.blocksNotes,ri++)].join(''));
+  const sInt=sb('Intraoperative Medications',[dr('Medications',f.intraop.join(', ')||'—',f.intraopNotes,ri++),dr('NMB Reversal',f.reversal.join(', ')||'—',null,ri++)].join(''));
+  const sEqp=sb('Equipment & Monitoring',[dr('Equipment',f.equip.join(', ')||'—',f.equipNotes,0)].join(''));
+  const sCon=(f.keyConcerns||f.generalNotes)?sb('Key Concerns & Notes',[f.keyConcerns?dr('Key Concerns',f.keyConcerns.replace(/\n/g,'<br>'),null,0):'',f.generalNotes?dr('General Notes',f.generalNotes.replace(/\n/g,'<br>'),null,1):''].join('')):'';
+  return`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Anesthesia Preference Card</title><style>@page{margin:0.45in;size:letter}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:white}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
+<div style="background:${T};padding:12px 15px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div><div style="color:white;font-size:17px;font-weight:700">Anesthesia Preference Card</div><div style="color:rgba(255,255,255,0.8);font-size:11.5px;margin-top:3px">${f.procedure||'Procedure TBD'} &nbsp;·&nbsp; ${surgeon}</div></div>
+  <div style="background:rgba(255,255,255,0.15);border-radius:4px;padding:5px 10px;text-align:right;flex-shrink:0;margin-left:14px"><div style="color:white;font-size:9.5px;line-height:1.85"><b>Surgeon:</b> ${surgeon}<br><b>Institution:</b> ${f.institution||'—'} &nbsp;<b>Created:</b> ${f.dateCreated||'—'}<br><b>Case Type:</b> ${f.caseType||'—'} &nbsp;<b>Technique:</b> ${f.technique.join(', ')||'—'}</div></div>
+</div>
+<table style="width:100%;border-collapse:collapse"><tr style="vertical-align:top">
+  <td style="width:44%;padding-right:7px">${sTech}${sPos}${sAir}${sEqp}</td>
+  <td style="width:56%;padding-left:5px">${sPre}${sInd}${sMnt}${sReg}${sInt}</td>
+</tr></table>
+${sCon}
+<div style="margin-top:10px;padding-top:6px;border-top:1.5px solid ${TB};display:flex;justify-content:space-between"><span style="font-size:9px;color:#6b7280;font-weight:600">Tony Kim, MD &nbsp;·&nbsp; Submitted by: ${[f.submitterFirst,f.submitterLast].filter(Boolean).join(' ')||'—'} &nbsp;·&nbsp; All submissions will be reviewed.</span><span style="font-size:9px;color:#6b7280">Created ${f.dateCreated||''}</span></div>
+</body></html>`;
+}
+
+function doPrint(){const w=window.open('','_blank','width=870,height=1060');if(!w){showToast('Allow popups to print');return;}w.document.write(buildPrintHTML(collect()));w.document.close();w.focus();setTimeout(()=>w.print(),400);}
+function openPreview(){document.getElementById('previewFrame').srcdoc=buildPrintHTML(collect());document.getElementById('modal').classList.add('open');}
+function closePreview(){document.getElementById('modal').classList.remove('open');}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===document.getElementById('modal'))closePreview();});
+
+function clearForm(){
+  if(!confirm('Clear all fields and start over?'))return;
+  ['surgeonFirst','surgeonLast','procedure','positionNotes','pivSiteNotes','premedNotes','inductionNotes','maintNotes','ponvNotes','blocksNotes','intraopNotes','equipNotes','keyConcerns','generalNotes','submitterFirst','submitterLast'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['caseType','etSize','extPlan'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('dateCreated').value=new Date().toISOString().slice(0,10);
+  document.getElementById('recipientEmail').value='tony.kim@bcm.edu';
+  Object.keys(sel).forEach(k=>sel[k]=[]);
+  document.querySelectorAll('.pill.on').forEach(p=>p.classList.remove('on'));
+  updateHeader();goTab(0);
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+</script>
+</body>
+</html>
