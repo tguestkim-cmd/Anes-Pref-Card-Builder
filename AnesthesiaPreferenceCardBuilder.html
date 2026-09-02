@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Anesthesia Preference Card</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ── Theme tokens ───────────────────────────────────────────────────── */
+:root {
+  --p:  #1B3669; --pl: #EBF0F8; --pd: #0D1E3D; --pm: #2B5BA8; --pb: #B0C4DE;
+  --bg: #ffffff; --bgp: #f1f4f8; --bga: #f7f9fc;
+  --tx: #111827; --txm: #5a6a80; --bd: #cfd8e3; --sha: rgba(0,0,0,0.07);
+  --warn: #b45309; --ok: #17703f;
+}
+[data-theme="dark"] {
+  --p:  #4A84D4; --pl: #182340; --pd: #A8C4E8; --pm: #5A94E8; --pb: #263B60;
+  --bg: #111C30; --bgp: #0B1220; --bga: #162036;
+  --tx: #E4EDF8; --txm: #7B9CC4; --bd: #243050; --sha: rgba(0,0,0,0.3);
+  --warn: #e0a24a; --ok: #5fc98d;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bgp);color:var(--tx);min-height:100vh;font-size:15px;line-height:1.5;transition:background 0.2s,color 0.2s}
+
+/* ── App shell ──────────────────────────────────────────────────────── */
+#app{max-width:700px;margin:0 auto;display:flex;flex-direction:column;min-height:100vh}
+@media(min-width:720px){#app{margin:16px auto;min-height:unset;border-radius:14px;overflow:hidden;box-shadow:0 4px 28px var(--sha)}}
+
+/* ── Sticky top (header + progress + tabs) ──────────────────────────── */
+.sticky-top{position:sticky;top:0;z-index:100;box-shadow:0 2px 8px var(--sha)}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.hdr{background:var(--p);padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;transition:background 0.2s}
+.hdr-l{min-width:0;flex:1}
+.hdr-title{color:#fff;font-size:13.5px;font-weight:700;letter-spacing:0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-sub{color:rgba(255,255,255,0.55);font-size:10.5px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-btns{display:flex;gap:5px;flex-shrink:0}
+.hbtn{background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);color:#fff;border-radius:8px;padding:0 11px;height:36px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background 0.12s}
+.hbtn:active{background:rgba(255,255,255,0.28)}
+.hbtn.icon{width:36px;padding:0;justify-content:center;font-size:17px}
+
+/* ── Progress ───────────────────────────────────────────────────────── */
+.prog{height:3px;background:rgba(255,255,255,0.18)}
+.prog-fill{height:100%;background:rgba(255,255,255,0.75);transition:width 0.35s}
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid var(--bd);overflow-x:auto;scrollbar-width:none;transition:background 0.2s}
+.tabs::-webkit-scrollbar{display:none}
+.tbtn{flex:0 0 auto;padding:0 13px;height:44px;font-size:12px;font-weight:500;border:none;border-bottom:2.5px solid transparent;background:transparent;color:var(--txm);cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.12s}
+.tbtn.active{color:var(--p);border-bottom-color:var(--p);font-weight:700}
+
+/* ── Content ────────────────────────────────────────────────────────── */
+.content{flex:1;background:var(--bg);padding:16px;transition:background 0.2s}
+.panel{display:none}
+.panel.active{display:block}
+
+/* ── Section headers ────────────────────────────────────────────────── */
+.sh{display:flex;align-items:center;gap:8px;margin:20px 0 11px;padding-bottom:8px;border-bottom:2px solid var(--p)}
+.sh.first{margin-top:0}
+.sh-lbl{font-size:13px;font-weight:700;color:var(--tx);letter-spacing:0.01em}
+
+/* ── Field groups ───────────────────────────────────────────────────── */
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:10.5px;font-weight:700;color:var(--txm);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.07em}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:13px}
+@media(max-width:420px){.g2{grid-template-columns:1fr}}
+.hint{font-size:11.5px;color:var(--txm);margin:-6px 0 11px;line-height:1.5}
+
+/* ── Form elements ──────────────────────────────────────────────────── */
+input,select,textarea{font-family:inherit;font-size:15px;color:var(--tx);background:var(--bga);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;width:100%;outline:none;transition:border-color 0.15s,box-shadow 0.15s,background 0.2s;-webkit-appearance:none;appearance:none}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235a6a80' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input:focus,select:focus,textarea:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(27,54,105,0.13);background:var(--bg)}
+[data-theme="dark"] input:focus,[data-theme="dark"] select:focus,[data-theme="dark"] textarea:focus{box-shadow:0 0 0 3px rgba(74,132,212,0.22)}
+textarea{resize:vertical;line-height:1.5;min-height:70px}
+
+/* ── Pills ──────────────────────────────────────────────────────────── */
+.pills{display:flex;flex-wrap:wrap;gap:7px;padding:2px 0}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:22px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--bd);background:var(--bga);color:var(--txm);font-family:inherit;transition:all 0.12s;-webkit-tap-highlight-color:transparent;min-height:38px;user-select:none}
+.pill:active{transform:scale(0.96)}
+.pill.on{border-color:var(--p);background:var(--pl);color:var(--p);font-weight:700;border-width:1.5px}
+[data-theme="dark"] .pill.on{color:var(--pm)}
+.pill-ck{font-size:11px;display:none}
+.pill.on .pill-ck{display:inline}
+.pill.on.auto{border-style:dashed}
+.pill.on.auto::after{content:'auto';font-size:8.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;opacity:0.6;margin-left:3px}
+
+/* ── Conditional reveal ─────────────────────────────────────────────── */
+.reveal{display:none;border-left:2.5px solid var(--p);padding-left:11px;margin:0 0 13px}
+.reveal.show{display:block}
+
+/* ── Nav ────────────────────────────────────────────────────────────── */
+.nav{display:flex;justify-content:space-between;align-items:center;margin-top:22px;padding-top:14px;border-top:1px solid var(--bd);gap:10px}
+.nav-info{font-size:11px;color:var(--txm);text-align:center;flex:1}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 18px;height:44px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:1.5px solid var(--bd);background:var(--bg);color:var(--tx);font-family:inherit;transition:all 0.12s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.btn:active{opacity:0.78;transform:scale(0.97)}
+.btn:disabled{opacity:0.3;cursor:default}
+.btn-p{background:var(--p);color:#fff;border-color:var(--p)}
+.btn-o{border-color:var(--p);color:var(--p);background:transparent}
+.btn-s{height:34px;padding:0 11px;font-size:12px;border-radius:8px}
+[data-theme="dark"] .btn-o{color:var(--pm);border-color:var(--pm)}
+
+/* ── Export panel ───────────────────────────────────────────────────── */
+.exp{margin-top:20px;padding:15px;background:var(--pl);border-radius:12px;border:1px solid var(--pb)}
+.exp-title{font-size:12.5px;font-weight:700;color:var(--p);margin-bottom:11px}
+[data-theme="dark"] .exp-title{color:var(--pm)}
+.exp-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:0}
+.exp-row .btn{flex:1 1 110px}
+.div{border:none;border-top:1px solid var(--pb);margin:13px 0}
+.eml-row{display:flex;gap:8px;align-items:flex-end}
+.eml-row .fg{flex:1;margin-bottom:0}
+.exp-note{font-size:11.5px;color:var(--txm);margin-top:9px;line-height:1.6}
+
+/* ── Toast ──────────────────────────────────────────────────────────── */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--pd);color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;max-width:320px;width:90%;text-align:center;transition:transform 0.25s ease;pointer-events:none}
+[data-theme="dark"] #toast{background:var(--pm)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ── Category labels ────────────────────────────────────────────────── */
+.cat-lbl{font-size:10.5px;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:0.07em;margin:12px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--pl)}
+
+/* ── Modals ─────────────────────────────────────────────────────────── */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:flex-start;justify-content:center;padding:18px 10px;overflow-y:auto}
+.modal.open{display:flex}
+.mbox{background:var(--bg);border-radius:14px;width:100%;max-width:820px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3)}
+.mhdr{background:var(--p);padding:11px 15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mhdr span{color:#fff;font-size:13.5px;font-weight:700}
+.mhdr-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
+/* ── Library ────────────────────────────────────────────────────────── */
+.lib-body{padding:14px;max-height:72vh;overflow-y:auto}
+.lib-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.lib-filters input,.lib-filters select{font-size:14px;padding:9px 11px}
+.lib-filters .full{grid-column:1 / -1}
+.lib-card{border:1px solid var(--bd);border-radius:11px;padding:11px 12px;margin-bottom:9px;display:flex;gap:10px;align-items:flex-start;background:var(--bga)}
+.lib-card.picked{border-color:var(--p);border-width:1.5px;background:var(--pl)}
+.lib-main{flex:1;min-width:0}
+.lib-title{font-size:14px;font-weight:700;color:var(--tx);line-height:1.35}
+.lib-meta{font-size:11.5px;color:var(--txm);margin-top:3px}
+.lib-acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.04em;text-transform:uppercase}
+.badge.pending{background:rgba(180,83,9,0.13);color:var(--warn)}
+.badge.vetted{background:rgba(23,112,63,0.13);color:var(--ok)}
+.lib-check{width:22px;height:22px;flex-shrink:0;margin-top:2px;accent-color:var(--p)}
+.lib-empty{text-align:center;padding:30px 16px;color:var(--txm);font-size:13.5px;line-height:1.6}
+.cmp-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cmp-table th{background:var(--p);color:#fff;padding:8px 10px;text-align:left;font-size:11.5px;position:sticky;top:0}
+.cmp-table td{padding:7px 10px;border-bottom:1px solid var(--bd);vertical-align:top;line-height:1.45}
+.cmp-table td.lbl{font-size:10.5px;font-weight:700;color:var(--txm);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;width:150px}
+.cmp-table tr.diff td{background:var(--pl)}
+.cmp-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="sticky-top">
+    <div class="hdr">
+      <div class="hdr-l">
+        <div class="hdr-title">Anesthesia Preference Card</div>
+        <div class="hdr-sub" id="hdrSub">Fill in each section to build a card</div>
+      </div>
+      <div class="hdr-btns">
+        <button class="hbtn icon" id="themeBtn" onclick="toggleTheme()" title="Switch light/dark">🌙</button>
+        <button class="hbtn icon" onclick="openLib()" title="Card library">📚</button>
+        <button class="hbtn" onclick="doPrint()">🖨</button>
+        <button class="hbtn" onclick="exportXLSX()">⬇</button>
+      </div>
+    </div>
+    <div class="prog"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+    <div class="tabs" id="tabNav"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ Panel 0 · Basic Info ══ -->
+    <div class="panel active" id="panel-0">
+      <div class="sh first"><span>👤</span><span class="sh-lbl">Surgeon/Proceduralist and Procedure</span></div>
+      <div class="g2">
+        <div class="fg"><label>Surgeon/Proceduralist First Name</label><input type="text" id="surgeonFirst" placeholder="e.g. John" oninput="updateHeader()" autocomplete="given-name"></div>
+        <div class="fg"><label>Surgeon/Proceduralist Last Name</label><input type="text" id="surgeonLast" placeholder="e.g. Smith" oninput="updateHeader()" autocomplete="family-name"></div>
+      </div>
+      <div class="fg"><label>Procedure</label><input type="text" id="procedure" placeholder="Type or auto-filled from CPT" oninput="onProcInput()" autocomplete="off"><div id="procSuggestions" style="position:relative"></div></div>
+      <div class="g2">
+        <div class="fg">
+          <label>CPT Code</label>
+          <input type="text" id="cptCode" placeholder="e.g. 47562" maxlength="6" oninput="onCptInput()" autocomplete="off">
+          <div id="cptStatus" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+        </div>
+        <div class="fg"><label>Date Created</label><input type="date" id="dateCreated"></div>
+      </div>
+      <div class="fg"><label>Institution</label><div class="pills" id="pills-institution"></div></div>
+
+      <div class="sh"><span>🩻</span><span class="sh-lbl">Anesthesia Technique</span></div>
+      <div class="fg"><label>Select Technique(s)</label><div class="pills" id="pills-technique"></div></div>
+
+      <div class="sh"><span>🛏</span><span class="sh-lbl">Positioning</span></div>
+      <div class="fg"><label>Position</label><div class="pills" id="pills-position"></div></div>
+      <div class="fg"><label>Position Notes</label><textarea id="positionNotes" placeholder="e.g. Right lateral decubitus, bean bag, axillary roll, all pressure points padded..."></textarea></div>
+    </div>
+
+    <!-- ══ Panel 1 · Airway ══ -->
+    <div class="panel" id="panel-1">
+      <div class="sh first"><span>💨</span><span class="sh-lbl">Airway Management</span></div>
+      <div class="fg"><label>Airway Device</label><div class="pills" id="pills-airway"></div></div>
+      <div class="fg"><label>Tape Preference</label><div class="pills" id="pills-tapePref"></div></div>
+      <div class="g2">
+        <div class="fg"><label id="sizeLabel">Tube / LMA Size</label>
+          <select id="etSize"></select>
+          <div id="sizeHint" style="font-size:11px;color:var(--txm);margin-top:4px;min-height:15px"></div>
+        </div>
+        <div class="fg"><label>Extubation Plan</label>
+          <select id="extPlan" onchange="onExtPlan()">
+            <option value="">Select...</option>
+            <option>Awake extubation</option><option>Deep extubation</option>
+            <option>Criteria-based</option><option>Remain intubated → ICU</option>
+          </select>
+        </div>
+      </div>
+      <div class="reveal" id="extCriteriaWrap">
+        <div class="fg"><label>Extubation Criteria</label><textarea id="extCriteria" placeholder="e.g. Full reversal with TOF ratio >0.9, cuff leak present, temp >36°C, MAP stable off pressors, surgeon agrees..."></textarea></div>
+      </div>
+      <div class="fg"><label>Airway Notes</label><textarea id="airwayNotes" placeholder="Known difficult airway, prior grade of view, tube depth, shared-airway plan, cuff pressure for NIMs..."></textarea></div>
+    </div>
+
+    <!-- ══ Panel 2 · Access & Monitoring ══ -->
+    <div class="panel" id="panel-2">
+      <div class="sh first"><span>💧</span><span class="sh-lbl">Vascular Access</span></div>
+      <div class="fg"><label>Peripheral Access</label><div class="pills" id="pills-access"></div></div>
+      <div class="hint">Gauge and site are left to the anesthesiologist unless the procedure requires otherwise.</div>
+      <div class="fg"><label>Invasive Lines</label><div class="pills" id="pills-lines"></div></div>
+      <div class="fg"><label>Access Notes</label><textarea id="accessNotes" placeholder="e.g. Avoid left arm (AV fistula); lines before induction; introducer for possible PAC..."></textarea></div>
+
+      <div class="sh"><span>📈</span><span class="sh-lbl">Monitoring Strategy</span></div>
+      <div class="fg"><label>Monitors</label><div class="pills" id="pills-monitoring"></div></div>
+      <div class="reveal" id="neuromonWrap">
+        <div class="fg"><label>Neuromonitoring Modalities</label><div class="pills" id="pills-neuromon"></div></div>
+        <div class="hint">Drives the anesthetic: MEPs generally need TIVA and no paralysis after induction.</div>
+      </div>
+      <div class="reveal" id="csfWrap">
+        <div class="fg"><label>CSF Drain Parameters</label><input type="text" id="csfParams" placeholder="e.g. Drain to keep CSF pressure <10 mmHg, max 10 mL/hr"></div>
+      </div>
+      <div class="fg"><label>Monitoring Notes</label><textarea id="monitorNotes" placeholder="TEE indication, PAC placement timing, transducer levelling, glucose or ACT check interval..."></textarea></div>
+    </div>
+
+    <!-- ══ Panel 3 · Medications ══ -->
+    <div class="panel" id="panel-3">
+      <div class="sh first"><span>💊</span><span class="sh-lbl">Preoperative Medications</span></div>
+      <div class="fg"><label>Ordered Premedications</label><div class="pills" id="pills-premeds"></div></div>
+      <div class="hint">Anxiolysis and analgesia at induction stay with the anesthesiologist. List only meds the protocol or surgeon requires.</div>
+      <div class="fg"><label>Premed Notes</label><textarea id="premedNotes" placeholder="Timing, who administers, hold parameters, check MAR before heparin..."></textarea></div>
+
+      <div class="sh"><span>⚡</span><span class="sh-lbl">Induction</span></div>
+      <div class="fg"><label>Induction Considerations</label><div class="pills" id="pills-induction"></div></div>
+      <div class="fg"><label>Induction Notes</label><textarea id="inductionNotes" placeholder="Aspiration risk, hemodynamic goals, paralysis constraints, awake plan..."></textarea></div>
+
+      <div class="sh"><span>⚙</span><span class="sh-lbl">Maintenance</span></div>
+      <div class="fg"><label>Maintenance Technique</label><div class="pills" id="pills-maint"></div></div>
+      <div class="fg"><label>Adjunct Infusions</label><div class="pills" id="pills-tiva"></div></div>
+      <div class="fg"><label>Maintenance Notes</label><textarea id="maintNotes" placeholder="MAC target, EtCO₂ or ventilation goals, processed EEG range, when to stop infusions..."></textarea></div>
+
+      <div class="sh"><span>🛡</span><span class="sh-lbl">PONV Prophylaxis</span></div>
+      <div class="fg"><label>PONV Agents</label><div class="pills" id="pills-ponv"></div></div>
+      <div class="fg"><label>PONV Notes</label><textarea id="ponvNotes" placeholder="Apfel score, timing of agents, rescue plan..."></textarea></div>
+    </div>
+
+    <!-- ══ Panel 4 · Regional & Intraop ══ -->
+    <div class="panel" id="panel-4">
+      <div class="sh first"><span>🩺</span><span class="sh-lbl">Regional Anesthesia &amp; Blocks</span></div>
+      <div class="fg"><label>Block / Neuraxial Selection</label><div class="pills" id="pills-blocks"></div></div>
+      <div class="fg"><label>Regional Notes</label><textarea id="blocksNotes" placeholder="Local anesthetic, concentration, adjuvants, timing, anticoagulation check..."></textarea></div>
+
+      <div class="sh"><span>🧪</span><span class="sh-lbl">Intraoperative Medications</span></div>
+      <div class="fg"><label>Drug Checklist</label><div id="intraop-cats"></div></div>
+      <div class="fg"><label>Intraop Medication Notes</label><textarea id="intraopNotes" placeholder="Redosing intervals, infusion concentrations, surgeon-requested timing..."></textarea></div>
+
+      <div class="sh"><span>🌊</span><span class="sh-lbl">Fluids &amp; Hemodynamics</span></div>
+      <div class="fg"><label>Fluid Strategy</label><div class="pills" id="pills-fluids"></div></div>
+      <div class="fg"><label>Hemodynamic Targets</label><div class="pills" id="pills-hemo"></div></div>
+      <div class="fg"><label>Transfusion &amp; Hemodynamic Notes</label><textarea id="hemoNotes" placeholder="Transfusion trigger, colloid vs crystalloid, when to call the surgeon before pressors..."></textarea></div>
+
+      <div class="sh"><span>🔄</span><span class="sh-lbl">NMB Reversal</span></div>
+      <div class="fg"><label>Reversal Plan</label><div class="pills" id="pills-reversal"></div></div>
+    </div>
+
+    <!-- ══ Panel 5 · Equipment & Notes ══ -->
+    <div class="panel" id="panel-5">
+      <div class="sh first"><span>📟</span><span class="sh-lbl">Equipment</span></div>
+      <div class="hint" style="margin:-4px 0 10px">Items marked <strong>auto</strong> were added from your airway, monitoring, or positioning choices. Tap one to remove it.</div>
+      <div id="equip-cats"></div>
+      <div class="fg"><label>Equipment Notes</label><textarea id="equipNotes" placeholder="Room setup, equipment sourcing, special configurations..."></textarea></div>
+
+      <div class="sh"><span>⚠</span><span class="sh-lbl">Key Concerns</span></div>
+      <div class="fg"><label>Key Anesthetic Concerns</label><textarea id="keyConcerns" style="min-height:90px" placeholder="Difficult airway, full stomach, cardiac history, drug sensitivities, surgeon preferences..."></textarea></div>
+
+      <div class="sh"><span>📝</span><span class="sh-lbl">General Notes</span></div>
+      <div class="fg"><label>Additional Notes for the Team</label><textarea id="generalNotes" placeholder="Any additional information for the anesthesia team..."></textarea></div>
+
+      <div class="sh"><span>✍️</span><span class="sh-lbl">Submitted By</span></div>
+      <div class="g2">
+        <div class="fg"><label>First Name</label><input type="text" id="submitterFirst" placeholder="Your first name" autocomplete="given-name"></div>
+        <div class="fg"><label>Last Name</label><input type="text" id="submitterLast" placeholder="Your last name" autocomplete="family-name"></div>
+      </div>
+      <div style="background:var(--pl);border:1px solid var(--pb);border-radius:10px;padding:11px 14px;font-size:12.5px;color:var(--p);font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:16px">ℹ️</span>
+        <span>All submissions are reviewed before a card is marked vetted.</span>
+      </div>
+
+      <div class="exp">
+        <div class="exp-title">Save, export, and print</div>
+        <div class="exp-row">
+          <button class="btn btn-p" onclick="saveToLibrary()">📚 Save to library</button>
+          <button class="btn btn-o" onclick="openPreview()">👁 Preview</button>
+          <button class="btn btn-o" onclick="doPrint()">🖨 Print / PDF</button>
+          <button class="btn btn-o" onclick="exportXLSX()">⬇ Excel</button>
+        </div>
+        <hr class="div">
+        <div style="font-size:12px;font-weight:700;color:var(--p);margin-bottom:8px">✉ Send Excel &amp; PDF by email</div>
+        <div class="eml-row">
+          <div class="fg"><label>Recipient</label><input type="email" id="recipientEmail" value="tony.kim@bcm.edu" autocomplete="email"></div>
+          <button class="btn btn-p" onclick="sendEmail()" style="flex-shrink:0">Send</button>
+        </div>
+        <div class="exp-note">Send downloads the <strong>Excel</strong> file, opens a <strong>print window</strong> to save as PDF, then opens your email client with the card summary. Attach both files before sending.</div>
+      </div>
+
+      <div style="margin-top:14px;text-align:center">
+        <button class="btn" onclick="clearForm()" style="color:var(--txm);font-size:13px;height:40px;border-color:var(--bd)">🗑 Clear all fields</button>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" id="btnPrev" onclick="changeTab(-1)" disabled>← Prev</button>
+      <span class="nav-info" id="navInfo">1 / 6</span>
+      <button class="btn btn-p" id="btnNext" onclick="changeTab(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══ Preview modal ══ -->
+<div id="modal" class="modal">
+  <div class="mbox">
+    <div class="mhdr">
+      <span>Card preview</span>
+      <div class="mhdr-btns">
+        <button class="hbtn" onclick="doPrint()">🖨 Print/PDF</button>
+        <button class="hbtn icon" onclick="closePreview()">✕</button>
+      </div>
+    </div>
+    <iframe id="previewFrame" style="width:100%;height:65vh;min-height:380px;border:none" title="Preview"></iframe>
+  </div>
+</div>
+
+<!-- ══ Library modal ══ -->
+<div id="libModal" class="modal">
+  <div class="mbox">
+    <div class="mhdr">
+      <span id="libHdrTitle">Card library</span>
+      <div class="mhdr-btns">
+        <button class="hbtn" onclick="libExportAll()">⬇ Excel</button>
+        <button class="hbtn" onclick="libExportJSON()">⤓ Backup</button>
+        <button class="hbtn" onclick="document.getElementById('libImport').click()">⤒ Import</button>
+        <button class="hbtn icon" onclick="closeLib()">✕</button>
+      </div>
+    </div>
+    <div class="lib-body">
+      <div id="libBrowse">
+        <div class="lib-filters">
+          <input class="full" type="search" id="libSearch" placeholder="Search surgeon, procedure, CPT, notes..." oninput="libRender()">
+          <select id="libInst" onchange="libRender()"><option value="">All institutions</option></select>
+          <select id="libSurg" onchange="libRender()"><option value="">All surgeons</option></select>
+          <select class="full" id="libStatus" onchange="libRender()"><option value="">All statuses</option><option>Pending review</option><option>Vetted</option></select>
+        </div>
+        <div class="cmp-bar">
+          <button class="btn btn-p btn-s" id="cmpBtn" onclick="libCompare()" disabled>Compare selected</button>
+          <span id="cmpCount" style="font-size:11.5px;color:var(--txm)">Tick two cards to compare them side by side.</span>
+        </div>
+        <div id="libList"></div>
+      </div>
+      <div id="libCompareView" style="display:none">
+        <div class="cmp-bar"><button class="btn btn-s btn-o" onclick="libBack()">← Back to library</button></div>
+        <div style="overflow-x:auto"><div id="cmpTable"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<input type="file" id="libImport" accept="application/json" style="display:none" onchange="libImportJSON(event)">
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   Option lists
+   ═══════════════════════════════════════════════════════════════════════ */
+const D={
+  institution:['Ben Taub','BSLMC','TCH','THI','VA','Vintage'],
+  technique:  ['General','MAC','TIVA','Regional','Spinal','Epidural','CSE','Bier block'],
+  position:   ['Supine','Lateral (L)','Lateral (R)','Prone','Lithotomy','Trendelenburg','Reverse Trendelenburg','Beach chair','Park bench','Sitting','Bed 90°','Bed 180°','Prone-jackknife','Thoracoabdominal'],
+
+  airway:     ['Oral ETT','Nasal ETT','Nasal RAE','ETT MLT','Wire reinforced ETT','Wire reinforced ETT – Dragonfly','NIMs tube','LMA Classic/Supreme','LMA with gastric port','Bronchial blocker','DLT – left','DLT – right','Jet ventilation','Awake FOB intubation','Tracheostomy tube','Natural airway / MAC'],
+  tapePref:   ['ETT taped left','ETT taped right','ETT straight back','ETT with accordion'],
+
+  access:     ['Standard PIV – anesthesiologist discretion','Two PIVs','Large-bore access (≥16g)','Ultrasound-guided PIV anticipated','Additional access after induction','Access on non-operative side only','Central access preferred to PIV'],
+  lines:      ['Radial a-line (R)','Radial a-line (L)','Femoral a-line','A-line before induction','CVL – RIJ','CVL – LIJ','CVL – subclavian','CVL – femoral','9Fr introducer','MAC line','PICC / existing central access'],
+
+  monitoring: ['Standard ASA monitors only','Arterial pressure monitoring','PA catheter','No PA catheter','TEE','TTE','Cardiac output / SVV monitor (FloTrac, EV1000)','Cerebral oximetry (NIRS)','Processed EEG / BIS','NMT / TOF monitor','Neuromonitoring','CSF drain (lumbar)','Precordial doppler','Esophageal temperature','Bladder temperature','Nasopharyngeal temperature','Glucose q1h','Serial ABGs','ACT monitoring','Urine output – hourly'],
+  neuromon:   ['MEPs','SSEPs','EEG','EMG','BAERs','D-wave'],
+
+  premeds:    ['Acetaminophen 1000mg PO','Celecoxib 200mg PO','Celecoxib 400mg PO','Gabapentin 300mg PO','Gabapentin 600mg PO','Pregabalin 75mg PO','Alvimopan 12mg PO','Scopolamine patch 1.5mg','Heparin 5,000u SQ','Enoxaparin 40mg SQ','Famotidine 20mg IV','Metoclopramide 10mg IV','Carbohydrate drink 2h pre-op','Preoperative crystalloid 1L','Hold anticoagulation before neuraxial','No premedication ordered',"Sedation at anesthesiologist's discretion"],
+
+  induction:  ['Standard IV induction – discretion','Rapid sequence induction','Modified RSI','Inhalational induction','Awake fiberoptic intubation','Induce on stretcher','Induce on OR bed','Lines placed before induction','Hemodynamically neutral induction preferred','Opioid-sparing induction','Avoid succinylcholine','Avoid etomidate','Avoid ketamine','No paralysis after induction (MEPs)'],
+  maint:      ['Volatile','TIVA (propofol)','Partial TIVA','Avoid N₂O','Avoid volatile (neuromonitoring)','Low MAC (<0.5) for MEPs','Opioid-free technique preferred',"Anesthesiologist's discretion"],
+  tiva:       ['Propofol infusion','Ketamine 0.2–0.4 mg/kg/hr','Lidocaine 2–4 mg/min','Dexmedetomidine 0.3–0.5 mcg/kg/hr','Remifentanil 0.05–0.2 mcg/kg/min','Esmolol background infusion','Magnesium infusion'],
+
+  ponv:       ['Dexamethasone 4mg IV','Dexamethasone 8mg IV','Ondansetron 4mg IV','Scopolamine patch 1.5mg','Droperidol 0.625mg IV','Promethazine 6.25mg IV','Diphenhydramine 12.5mg IV','Haloperidol 1mg IV','TIVA (antiemetic effect)','Two agents minimum',"Anesthesiologist's discretion"],
+
+  blocks:     ['Spinal','Epidural','CSE','IT morphine 150mcg','IT morphine 200mcg','TAP – bilateral','TAP – unilateral','QLB','Erector spinae plane','Paravertebral','Interscalene','Supraclavicular','Axillary block','Femoral nerve block','Adductor canal block','Popliteal sciatic','Pec I / Pec II','Serratus anterior','Surgeon-infiltrated local','No block'],
+
+  fluids:     ['Goal-directed fluid therapy','Restrictive fluids','Liberal fluids','Carrier fluid 1–4 mL/kg/hr','Net positive 1–1.5 L','Albumin bolus for SVV/PPV >12','Replace EBL 1:1 with 5% albumin','Low urine output acceptable','Colloid preferred','Blood in room'],
+  hemo:       ['MAP > 55','MAP > 65','MAP > 75','SBP < 140','Permissive hypotension','Strict rate control','Call surgeon before starting pressors','Avoid pressors – volume first'],
+
+  reversal:   ['Sugammadex 2 mg/kg IV','Sugammadex 4 mg/kg IV','Sugammadex 16 mg/kg (immediate)','Neostigmine + glycopyrrolate','Full reversal required before extubation','Remain intubated – no reversal',"Anesthesiologist's discretion"],
+};
+
+const INTRAOP_CATS = [
+  { label: 'Antibiotics', items: ['Cefazolin 2g IV','Cefazolin 3g IV (>120 kg)','Cefoxitin 2g IV','Cefuroxime 1.5g IV','Ceftriaxone 2g IV','Ampicillin-sulbactam 3g IV','Piperacillin-tazobactam 3.375g IV','Ertapenem 1g IV','Metronidazole 500mg IV','Gentamicin 5 mg/kg IV','Vancomycin 15 mg/kg IV','Clindamycin 900mg IV','Aztreonam 2g IV','Ciprofloxacin 400mg IV','Redose per protocol (blood loss / duration)'] },
+  { label: 'Anticoagulation', items: ['Heparin 5,000u SQ (DVT)','Systemic heparin 70–100 u/kg','Systemic heparin 300–400 u/kg (CPB)','Target ACT > 200 s','Target ACT > 250 s','Target ACT > 300 s','Target ACT > 400 s','Target ACT > 480 s (CPB)','Protamine (per heparin)','Bivalirudin','Argatroban','No systemic anticoagulation'] },
+  { label: 'Vasopressors & inotropes', items: ['Phenylephrine PRN','Ephedrine PRN','Norepinephrine infusion','Epinephrine infusion','Vasopressin 20u / infusion','Dopamine infusion','Dobutamine infusion','Milrinone infusion','Calcium chloride','Papaverine infusion (surgeon)'] },
+  { label: 'Antihypertensives & rate control', items: ['Esmolol bolus / infusion','Labetalol 5–10mg IV','Metoprolol 1–5mg IV','Nicardipine infusion','Clevidipine infusion','Nitroglycerin infusion','Nitroprusside infusion','Hydralazine 5–10mg IV','Adenosine (per surgeon)'] },
+  { label: 'Diuretics', items: ['Furosemide 20mg IV','Mannitol 0.5 g/kg','Mannitol 1 g/kg','Acetazolamide'] },
+  { label: 'Analgesics – opioid', items: ['Fentanyl','Fentanyl ≤ 100 mcg total','Hydromorphone','Morphine','Methadone','Sufentanil','Remifentanil infusion','Avoid long-acting opioids','Avoid all opioids'] },
+  { label: 'Analgesics – non-opioid', items: ['Ketorolac 15mg IV','Ketorolac 30mg IV','Acetaminophen 1000mg IV','Magnesium 2g IV','Ketamine bolus 0.5 mg/kg','Lidocaine infusion','Dexmedetomidine','Local infiltration by surgeon'] },
+  { label: 'Miscellaneous', items: ['Dexamethasone 8mg IV','Insulin (per glucose)','TXA 1000mg IV','TXA infusion','Aminocaproic acid','Indocyanine green (surgeon)','Methylene blue (surgeon)','Fluorescein (surgeon)','Isosulfan blue (surgeon)','Albumin 5%','Oxytocin','Glucagon (surgeon)'] },
+];
+
+const EQUIP_CATS = [
+  { label: 'Airway equipment', items: ['Video laryngoscope / GlideScope','Fiberoptic bronchoscope','Bougie / tube exchanger','Difficult airway cart','Jet ventilator'] },
+  { label: 'Temperature & warming', items: ['Bair Hugger – upper body','Bair Hugger – lower body','Bair Hugger – underbody','Fluid warmer','Temperature probe','Warming to strict normothermia'] },
+  { label: 'Blood & resuscitation', items: ['Cell saver','Level 1 rapid infuser','Belmont infuser','Blood checked and in room','Massive transfusion protocol on standby','Defibrillator / pads in room'] },
+  { label: 'Tubes & drains', items: ['Foley catheter','OG tube','NG tube','Rectal tube','Bite block'] },
+  { label: 'Positioning & protection', items: ['SCDs + compression stockings','Axillary roll','Shoulder rolls','Tegaderm on eyes','Eye tape / goggles','Prone view pillow','Foam prone pillow','Padded arm boards','Beanbag'] },
+];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Tube sizes, driven by airway selection
+   ═══════════════════════════════════════════════════════════════════════ */
+const SIZE_SETS={
+  ett:  {label:'ETT (mm ID)',   items:['5.5','6.0','6.5','7.0','7.5','8.0','8.5','9.0']},
+  mlt:  {label:'MLT (mm ID)',   items:['4.0','4.5','5.0','5.5','6.0']},
+  dlt:  {label:'DLT (French)',  items:['26 Fr','28 Fr','32 Fr','35 Fr','37 Fr','39 Fr','41 Fr']},
+  lma:  {label:'LMA size',      items:['Size 3','Size 4','Size 5']},
+  trach:{label:'Tracheostomy',  items:['Shiley 6','Shiley 8','Size per surgeon']},
+};
+function airwaySets(){
+  const s=new Set();
+  sel.airway.forEach(a=>{
+    if(a.indexOf('DLT')>-1)s.add('dlt');
+    else if(a.indexOf('MLT')>-1)s.add('mlt');
+    else if(a.indexOf('LMA')>-1)s.add('lma');
+    else if(a.indexOf('Tracheostomy')>-1)s.add('trach');
+    else if(a.indexOf('ETT')>-1||a.indexOf('RAE')>-1||a.indexOf('NIMs')>-1||a.indexOf('intubation')>-1||a.indexOf('blocker')>-1)s.add('ett');
+  });
+  return Array.from(s);
+}
+function refreshSizes(){
+  const selEl=document.getElementById('etSize');
+  const prev=selEl.value;
+  const sets=airwaySets();
+  const keys=sets.length?sets:['ett'];
+  let html='<option value="">Select size...</option><option>Standard</option>';
+  keys.forEach(k=>{
+    const set=SIZE_SETS[k];
+    html+=`<optgroup label="${set.label}">`+set.items.map(i=>`<option>${i}</option>`).join('')+'</optgroup>';
+  });
+  html+='<option>Custom / TBD</option>';
+  selEl.innerHTML=html;
+  const opts=Array.from(selEl.options).map(o=>o.value||o.textContent);
+  selEl.value=opts.indexOf(prev)>-1?prev:'';
+  const hint=document.getElementById('sizeHint');
+  const lbl=document.getElementById('sizeLabel');
+  if(sets.indexOf('dlt')>-1){lbl.textContent='DLT / Tube Size';hint.textContent='DLT French sizes listed.';}
+  else if(sets.indexOf('lma')>-1&&sets.length===1){lbl.textContent='LMA Size';hint.textContent='';}
+  else{lbl.textContent='Tube / LMA Size';hint.textContent=sets.length?'':'Sizes update when an airway device is selected.';}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CPT lookup
+   ═══════════════════════════════════════════════════════════════════════ */
+const CPT = {
+  '44950':'Appendectomy','44960':'Appendectomy, ruptured','44970':'Laparoscopic appendectomy',
+  '47562':'Laparoscopic cholecystectomy','47563':'Laparoscopic cholecystectomy with cholangiography',
+  '47600':'Cholecystectomy','47610':'Cholecystectomy with cholangiography',
+  '44140':'Colectomy, partial, with anastomosis','44141':'Colectomy, partial, with colostomy',
+  '44145':'Colectomy, partial, low anterior resection','44150':'Colectomy, total, with ileostomy',
+  '44155':'Colectomy, total, with proctectomy','44160':'Colectomy, total, with proctectomy and ileoanal anastomosis',
+  '44204':'Laparoscopic colectomy, partial','44205':'Laparoscopic colectomy, partial, with ileostomy',
+  '44207':'Laparoscopic colectomy, partial, with anastomosis, low pelvic',
+  '44210':'Laparoscopic colectomy, total','44211':'Laparoscopic colectomy, total, with proctectomy',
+  '44238':'Laparoscopic colorectal surgery, unlisted',
+  '44300':'Enterostomy','44310':'Ileostomy or jejunostomy','44320':'Colostomy',
+  '44625':'Closure of enterostomy','44640':'Closure of intestinal fistula',
+  '49505':'Repair inguinal hernia, initial','49507':'Repair inguinal hernia, initial, age >5','49520':'Repair inguinal hernia, recurrent',
+  '49560':'Repair ventral hernia, initial','49561':'Repair ventral hernia, incarcerated','49565':'Repair ventral hernia, recurrent',
+  '49585':'Repair umbilical hernia','49650':'Laparoscopic inguinal hernia repair','49652':'Laparoscopic ventral hernia repair',
+  '43239':'Esophagogastroduodenoscopy with biopsy','43248':'EGD with dilation',
+  '43280':'Laparoscopic fundoplication','43281':'Laparoscopic paraesophageal hernia repair',
+  '43620':'Gastrectomy, total','43621':'Gastrectomy, total, with Roux-en-Y','43622':'Gastrectomy, partial',
+  '43770':'Laparoscopic gastric banding','43775':'Laparoscopic sleeve gastrectomy','43846':'Gastric bypass, Roux-en-Y',
+  '48000':'Pancreatic surgery, general','48100':'Biopsy of pancreas','48150':'Pancreatectomy, distal',
+  '48153':'Pancreatectomy, distal, with splenectomy','48154':'Pancreatectomy, distal, laparoscopic',
+  '48155':'Pancreatectomy, total','48180':'Pancreaticojejunostomy','48500':'Whipple procedure (pancreaticoduodenectomy)',
+  '38100':'Splenectomy, total','38101':'Splenectomy, partial','38120':'Laparoscopic splenectomy',
+  '47000':'Liver biopsy','47100':'Liver wedge biopsy','47120':'Hepatectomy, partial','47122':'Hepatectomy, trisegmentectomy',
+  '47125':'Hepatectomy, left lobectomy','47130':'Hepatectomy, right lobectomy',
+  '45110':'Abdominoperineal resection','45111':'Proctectomy, partial','45113':'Proctectomy with coloanal anastomosis',
+  '45119':'Proctectomy with ileoanal anastomosis','45120':'Proctectomy, complete','45121':'Proctectomy with colostomy',
+  '45160':'Rectal resection','45170':'Excision of rectal tumor','45190':'Destruction of rectal tumor',
+  '45300':'Rigid proctosigmoidoscopy','45378':'Colonoscopy, diagnostic','45380':'Colonoscopy with biopsy',
+  '45385':'Colonoscopy with polypectomy','45386':'Colonoscopy with dilation',
+  '50340':'Donor nephrectomy','50360':'Renal transplant','50365':'Renal transplant with recipient nephrectomy',
+  '50543':'Laparoscopic partial nephrectomy','50545':'Laparoscopic radical nephrectomy',
+  '50546':'Laparoscopic nephrectomy','50547':'Laparoscopic donor nephrectomy',
+  '50548':'Laparoscopic nephrectomy with total ureterectomy',
+  '50600':'Ureterectomy','50650':'Ureterectomy, with bladder cuff',
+  '51570':'Cystectomy, complete','51575':'Cystectomy with lymph node dissection',
+  '51580':'Cystectomy with ureterosigmoidostomy','51590':'Cystectomy with ureteroileal conduit',
+  '51595':'Cystectomy with continent diversion','51596':'Cystectomy with continent bladder',
+  '52000':'Cystourethroscopy','52001':'Cystourethroscopy with irrigation',
+  '55840':'Prostatectomy, retropubic','55842':'Prostatectomy, retropubic, with lymph node biopsy',
+  '55845':'Prostatectomy, retropubic, with bilateral pelvic lymphadenectomy',
+  '55866':'Laparoscopic radical prostatectomy (robot-assisted)',
+  '54520':'Orchiectomy, simple','54530':'Orchiectomy, radical',
+  '27130':'Total hip arthroplasty','27132':'Total hip arthroplasty, revision',
+  '27447':'Total knee arthroplasty','27487':'Total knee arthroplasty, revision',
+  '27236':'Open treatment femoral neck fracture','27244':'Treatment femoral shaft fracture with intramedullary implant',
+  '27245':'Treatment femoral fracture with intramedullary nail',
+  '23472':'Total shoulder arthroplasty','23473':'Total shoulder arthroplasty, revision',
+  '29881':'Knee arthroscopy with meniscectomy','29882':'Knee arthroscopy with meniscus repair',
+  '29827':'Shoulder arthroscopy with rotator cuff repair',
+  '22612':'Lumbar arthrodesis, posterior','22630':'Lumbar arthrodesis, posterior interbody',
+  '22840':'Posterior segmental instrumentation','22845':'Anterior segmental instrumentation',
+  '61510':'Craniotomy for excision of brain tumor','61512':'Craniotomy for excision of meningioma',
+  '61518':'Craniotomy for excision of cerebellar tumor','61520':'Craniotomy for excision of acoustic neuroma',
+  '61548':'Hypophysectomy, transsphenoidal','61700':'Surgery of intracranial aneurysm',
+  '61720':'Deep brain stimulation, insertion of electrode array','61863':'DBS electrode implant, subthalamic/pallidal',
+  '63030':'Laminotomy with discectomy, lumbar','63047':'Laminectomy, lumbar','63056':'Transpedicular approach, lumbar',
+  '62270':'Spinal puncture, lumbar, diagnostic','62310':'Epidural injection, cervical/thoracic',
+  '62311':'Epidural injection, lumbar/sacral',
+  '32440':'Pneumonectomy, total','32480':'Lobectomy','32482':'Bilobectomy','32484':'Segmentectomy',
+  '32486':'Sleeve lobectomy','32488':'Completion pneumonectomy','32503':'Resection apical lung tumor',
+  '32505':'Thoracotomy with therapeutic wedge resection','32663':'VATS lobectomy',
+  '32666':'VATS wedge resection','32671':'VATS segmentectomy',
+  '39501':'Repair diaphragmatic hernia','39503':'Repair neonatal diaphragmatic hernia',
+  '33510':'CABG, arterial, single','33511':'CABG, arterial, two','33512':'CABG, arterial, three',
+  '33533':'CABG, arterial, single (off-pump)','33534':'CABG, arterial, two (off-pump)',
+  '33405':'Aortic valve replacement','33406':'Aortic valve replacement, homograft',
+  '33420':'Mitral valve repair','33430':'Mitral valve replacement',
+  '33999':'Transcatheter aortic valve replacement (TAVR)',
+  '35301':'Carotid endarterectomy','35311':'Carotid endarterectomy with patch',
+  '34812':'Endovascular repair abdominal aortic aneurysm (EVAR)',
+  '35082':'Repair abdominal aortic aneurysm, open','35092':'Repair ruptured abdominal aortic aneurysm',
+  '35820':'Exploration of vascular injury',
+  '31622':'Bronchoscopy, diagnostic','31625':'Bronchoscopy with biopsy','31628':'Bronchoscopy with BAL',
+  '31640':'Bronchoscopy with tumor excision',
+  '42820':'Tonsillectomy and adenoidectomy, age <12','42821':'Tonsillectomy and adenoidectomy, age >12',
+  '31231':'Nasal endoscopy, diagnostic','31237':'Nasal endoscopy with biopsy','31240':'Nasal endoscopy with concha bullosa resection',
+  '30520':'Septoplasty','30140':'Submucous resection turbinate',
+  '31300':'Laryngotomy','31360':'Laryngectomy, total','31365':'Laryngectomy, total, with neck dissection',
+  '69990':'Microsurgical techniques',
+  '58150':'Total abdominal hysterectomy','58152':'Total abdominal hysterectomy with colpo-urethropexy',
+  '58180':'Supracervical abdominal hysterectomy','58210':'Radical abdominal hysterectomy',
+  '58260':'Vaginal hysterectomy','58262':'Vaginal hysterectomy with removal of tubes/ovaries',
+  '58550':'Laparoscopic hysterectomy','58552':'Laparoscopic hysterectomy with removal of tubes/ovaries',
+  '58571':'Laparoscopic total hysterectomy','58572':'Laparoscopic radical hysterectomy',
+  '59510':'Routine obstetric care with cesarean delivery','59514':'Cesarean delivery only',
+  '59515':'Cesarean delivery with postpartum care',
+  '58600':'Ligation of fallopian tubes','58605':'Ligation of fallopian tubes, postpartum',
+  '58661':'Laparoscopic removal of adnexal structures','58700':'Salpingectomy',
+  '47135':'Liver transplant, orthotopic','47136':'Liver transplant, heterotopic',
+  '48554':'Pancreas transplant','48556':'Pancreas transplant with nephrectomy',
+  '33935':'Heart-lung transplant','33940':'Heart transplant',
+  '32850':'Lung transplant, single','32851':'Lung transplant, single, with cardiopulmonary bypass',
+  '32852':'Lung transplant, bilateral','32853':'Lung transplant, bilateral, with bypass',
+};
+
+function onCptInput(){
+  const code=document.getElementById('cptCode').value.trim();
+  const status=document.getElementById('cptStatus');
+  const procEl=document.getElementById('procedure');
+  if(code.length===0){status.textContent='';return;}
+  if(code.length<5){status.style.color='var(--txm)';status.textContent='Enter 5-digit CPT code';return;}
+  const match=CPT[code];
+  if(match){
+    procEl.value=match;
+    status.style.color='var(--p)';
+    status.textContent='✓ Procedure filled in';
+    updateHeader();
+  } else {
+    status.style.color='var(--warn)';
+    status.textContent='Code not in list — type the procedure';
+  }
+}
+
+function onProcInput(){
+  updateHeader();
+  const val=document.getElementById('procedure').value.trim().toLowerCase();
+  const box=document.getElementById('procSuggestions');
+  box.innerHTML='';
+  if(val.length<3)return;
+  const matches=Object.entries(CPT).filter(([k,v])=>v.toLowerCase().indexOf(val)>-1).slice(0,6);
+  if(!matches.length)return;
+  const ul=document.createElement('div');
+  ul.style.cssText='position:absolute;left:0;right:0;background:var(--bg);border:1px solid var(--bd);border-radius:8px;box-shadow:0 4px 16px var(--sha);z-index:200;overflow:hidden;margin-top:2px';
+  matches.forEach(([code,name])=>{
+    const li=document.createElement('div');
+    li.style.cssText='padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:0.5px solid var(--bd);display:flex;gap:10px;align-items:center';
+    li.innerHTML=`<span style="font-weight:700;color:var(--p);flex-shrink:0">${code}</span><span>${name}</span>`;
+    li.onmousedown=(e)=>{
+      e.preventDefault();
+      document.getElementById('procedure').value=name;
+      document.getElementById('cptCode').value=code;
+      document.getElementById('cptStatus').style.color='var(--p)';
+      document.getElementById('cptStatus').textContent='✓ Procedure filled in';
+      box.innerHTML='';
+      updateHeader();
+    };
+    li.onmouseover=()=>li.style.background='var(--pl)';
+    li.onmouseout=()=>li.style.background='';
+    ul.appendChild(li);
+  });
+  box.appendChild(ul);
+}
+document.addEventListener('click',()=>{const b=document.getElementById('procSuggestions');if(b)b.innerHTML='';});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Linked selections — one choice implies another
+   Each rule: picking any item in `from` adds every item listed in `add`.
+   Deliberately limited to equipment, monitoring, access, and positioning.
+   Medications are never selected automatically — drug choices stay with
+   the anesthesiologist.
+   ═══════════════════════════════════════════════════════════════════════ */
+const LINKS=[
+  // Airway device → the kit needed to place or confirm it
+  {from:'airway',    items:['Jet ventilation'],                                    add:{equip:['Jet ventilator']}},
+  {from:'airway',    items:['Awake FOB intubation'],                               add:{equip:['Fiberoptic bronchoscope','Difficult airway cart']}},
+  {from:'airway',    items:['DLT – left','DLT – right','Bronchial blocker'],       add:{equip:['Fiberoptic bronchoscope']}},
+  {from:'induction', items:['Awake fiberoptic intubation'],                        add:{equip:['Fiberoptic bronchoscope','Difficult airway cart']}},
+  // NIMs tube is nerve integrity (EMG) monitoring
+  {from:'airway',    items:['NIMs tube'],                                          add:{monitoring:['Neuromonitoring'],neuromon:['EMG']}},
+  // Monitoring ↔ the access it requires
+  {from:'monitoring',items:['PA catheter'],                                        add:{lines:['9Fr introducer']}},
+  {from:'monitoring',items:['Cardiac output / SVV monitor (FloTrac, EV1000)'],     add:{monitoring:['Arterial pressure monitoring']}},
+  {from:'lines',     items:['Radial a-line (R)','Radial a-line (L)','Femoral a-line','A-line before induction'], add:{monitoring:['Arterial pressure monitoring']}},
+  {from:'monitoring',items:['Esophageal temperature','Bladder temperature','Nasopharyngeal temperature'], add:{equip:['Temperature probe']}},
+  // Technique keeps the regional section in step
+  {from:'technique', items:['Spinal'],                                             add:{blocks:['Spinal']}},
+  {from:'technique', items:['Epidural'],                                           add:{blocks:['Epidural']}},
+  {from:'technique', items:['CSE'],                                                add:{blocks:['CSE']}},
+  // Positioning and blood
+  {from:'position',  items:['Lateral (L)','Lateral (R)'],                          add:{equip:['Axillary roll']}},
+  {from:'fluids',    items:['Blood in room'],                                      add:{equip:['Blood checked and in room']}},
+];
+
+const TAB_OF={airway:'Airway',tapePref:'Airway',access:'Access & Monitoring',lines:'Access & Monitoring',monitoring:'Access & Monitoring',neuromon:'Access & Monitoring',premeds:'Medications',induction:'Medications',maint:'Medications',tiva:'Medications',ponv:'Medications',blocks:'Regional & Intraop',intraop:'Regional & Intraop',fluids:'Regional & Intraop',hemo:'Regional & Intraop',reversal:'Regional & Intraop',equip:'Equipment',technique:'Basic Info',position:'Basic Info'};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════════════ */
+const SINGLE=new Set(['position','institution']);
+const sel={};
+Object.keys(D).forEach(k=>sel[k]=[]);
+sel.equip=[];
+sel.intraop=[];
+/* Items this app selected on the user's behalf, and items the user has
+   deliberately removed after it did (so they are not added back). */
+const autoOn={},userOff={};
+Object.keys(sel).forEach(k=>{autoOn[k]=new Set();userOff[k]=new Set();});
+const TABS=['Basic Info','Airway','Access & Monitoring','Medications','Regional & Intraop','Equipment & Notes'];
+let cur=0;
+
+window.onload=()=>{
+  document.getElementById('dateCreated').value=new Date().toISOString().slice(0,10);
+  const saved=localStorage.getItem('apc-theme')||'light';
+  document.documentElement.dataset.theme=saved;
+  document.getElementById('themeBtn').textContent=saved==='dark'?'☀️':'🌙';
+
+  const nav=document.getElementById('tabNav');
+  TABS.forEach((t,i)=>{
+    const b=document.createElement('button');
+    b.className='tbtn'+(i===0?' active':'');
+    b.id=`tb-${i}`;b.textContent=t;b.onclick=()=>goTab(i);
+    nav.appendChild(b);
+  });
+
+  Object.keys(D).forEach(key=>{
+    const c=document.getElementById(`pills-${key}`);if(!c)return;
+    const single=SINGLE.has(key);
+    D[key].forEach(item=>{
+      const b=document.createElement('button');
+      b.className='pill';b.type='button';b.dataset.item=item;
+      b.innerHTML=`<span class="pill-ck">✓</span>${item}`;
+      b.addEventListener('click',()=>togglePill(key,item,b,single,c));
+      c.appendChild(b);
+    });
+  });
+
+  buildCats('equip-cats',EQUIP_CATS,'equip');
+  buildCats('intraop-cats',INTRAOP_CATS,'intraop');
+  refreshSizes();
+  updateProg();
+};
+
+function buildCats(hostId,cats,key){
+  const host=document.getElementById(hostId);
+  cats.forEach(cat=>{
+    const lbl=document.createElement('div');
+    lbl.className='cat-lbl';lbl.textContent=cat.label;
+    host.appendChild(lbl);
+    const pd=document.createElement('div');
+    pd.className='pills';pd.style.marginBottom='10px';
+    cat.items.forEach(item=>{
+      const b=document.createElement('button');
+      b.className='pill';b.type='button';b.dataset.item=item;
+      b.innerHTML=`<span class="pill-ck">✓</span>${item}`;
+      b.addEventListener('click',()=>togglePill(key,item,b,false,pd));
+      pd.appendChild(b);
+    });
+    host.appendChild(pd);
+  });
+}
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const next=html.dataset.theme==='dark'?'light':'dark';
+  html.dataset.theme=next;
+  document.getElementById('themeBtn').textContent=next==='dark'?'☀️':'🌙';
+  try{localStorage.setItem('apc-theme',next);}catch(e){}
+}
+
+function hostsFor(k){
+  const h=[document.getElementById('pills-'+k)];
+  if(k==='equip')h.push(document.getElementById('equip-cats'));
+  if(k==='intraop')h.push(document.getElementById('intraop-cats'));
+  return h.filter(Boolean);
+}
+function hasItem(k,item){
+  return hostsFor(k).some(h=>Array.from(h.querySelectorAll('.pill')).some(p=>p.dataset.item===item));
+}
+function paintPills(){
+  document.querySelectorAll('.pill').forEach(p=>p.classList.remove('on','auto'));
+  Object.keys(sel).forEach(k=>{
+    hostsFor(k).forEach(host=>{
+      host.querySelectorAll('.pill').forEach(p=>{
+        const item=p.dataset.item;
+        if(sel[k].indexOf(item)>-1){
+          p.classList.add('on');
+          if(autoOn[k].has(item))p.classList.add('auto');
+        }
+      });
+    });
+  });
+}
+
+/* Everything a current selection implies, gathered from LINKS. */
+function requiredByLinks(){
+  const req={};
+  LINKS.forEach(rule=>{
+    const src=sel[rule.from];
+    if(!src||!rule.items.some(i=>src.indexOf(i)>-1))return;
+    Object.keys(rule.add).forEach(k=>{
+      req[k]=req[k]||new Set();
+      rule.add[k].forEach(i=>req[k].add(i));
+    });
+  });
+  return req;
+}
+
+/* Add what is implied, drop anything we added whose trigger is gone.
+   Loops so that chained rules settle (technique TIVA → maintenance TIVA
+   → processed EEG). */
+function applyLinks(announce){
+  const added=[];
+  let changed=true,pass=0;
+  while(changed&&pass<5){
+    changed=false;pass++;
+    const req=requiredByLinks();
+    Object.keys(req).forEach(k=>{
+      if(!sel[k])return;
+      req[k].forEach(item=>{
+        if(sel[k].indexOf(item)>-1||userOff[k].has(item)||!hasItem(k,item))return;
+        sel[k].push(item);autoOn[k].add(item);added.push([k,item]);changed=true;
+      });
+    });
+    Object.keys(autoOn).forEach(k=>{
+      Array.from(autoOn[k]).forEach(item=>{
+        if(req[k]&&req[k].has(item))return;
+        autoOn[k].delete(item);
+        const i=sel[k].indexOf(item);
+        if(i>-1){sel[k].splice(i,1);changed=true;}
+      });
+    });
+  }
+  paintPills();onMonitoring();refreshSizes();updateProg();
+  if(announce&&added.length){
+    const first=added[0];
+    showToast(added.length===1
+      ? `${first[1]} added under ${TAB_OF[first[0]]||'the card'}`
+      : `${added.length} linked items added, including ${first[1]}`);
+  }
+}
+
+function togglePill(key,item,btn,single,container){
+  if(single){
+    const was=sel[key][0]===item;
+    sel[key]=was?[]:[item];
+  }else{
+    const idx=sel[key].indexOf(item);
+    if(idx===-1){
+      sel[key].push(item);
+      userOff[key].delete(item);
+      autoOn[key].delete(item);   // chosen by hand now, so it stays
+    }else{
+      sel[key].splice(idx,1);
+      if(autoOn[key].has(item)){autoOn[key].delete(item);userOff[key].add(item);}
+    }
+  }
+  applyLinks(true);
+}
+
+function onExtPlan(){
+  document.getElementById('extCriteriaWrap').classList.toggle('show',document.getElementById('extPlan').value==='Criteria-based');
+}
+function onMonitoring(){
+  document.getElementById('neuromonWrap').classList.toggle('show',sel.monitoring.indexOf('Neuromonitoring')>-1);
+  document.getElementById('csfWrap').classList.toggle('show',sel.monitoring.indexOf('CSF drain (lumbar)')>-1);
+}
+
+function goTab(i){
+  document.getElementById(`panel-${cur}`).classList.remove('active');
+  document.getElementById(`tb-${cur}`).classList.remove('active');
+  cur=i;
+  document.getElementById(`panel-${i}`).classList.add('active');
+  document.getElementById(`tb-${i}`).classList.add('active');
+  document.getElementById(`tb-${i}`).scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  document.getElementById('btnPrev').disabled=i===0;
+  const nb=document.getElementById('btnNext');
+  if(i===TABS.length-1){nb.textContent='🖨 Print';nb.onclick=doPrint;}
+  else{nb.textContent='Next →';nb.onclick=()=>changeTab(1);}
+  document.getElementById('navInfo').textContent=`${i+1} / ${TABS.length} · ${getPct()}%`;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function changeTab(d){goTab(Math.max(0,Math.min(TABS.length-1,cur+d)));}
+
+function getPct(){
+  const checks=[!!g('surgeonLast'),!!g('procedure'),sel.institution.length>0,sel.technique.length>0,sel.position.length>0,sel.airway.length>0,sel.monitoring.length>0||sel.lines.length>0,sel.maint.length>0];
+  return Math.round(checks.filter(Boolean).length/checks.length*100);
+}
+function updateProg(){
+  document.getElementById('progFill').style.width=getPct()+'%';
+  document.getElementById('navInfo').textContent=`${cur+1} / ${TABS.length} · ${getPct()}%`;
+}
+function updateHeader(){
+  const sub=document.getElementById('hdrSub');
+  const fn=g('surgeonFirst'),ln=g('surgeonLast'),pr=g('procedure');
+  sub.textContent=(ln&&pr)?`Dr. ${fn} ${ln} · ${pr}`.trim():'Fill in each section to build a card';
+  updateProg();
+}
+function g(id){const e=document.getElementById(id);return e?e.value:'';}
+function j(a){return (a&&a.length)?a.join(', '):'';}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Collect / restore
+   ═══════════════════════════════════════════════════════════════════════ */
+const TEXT_IDS=['surgeonFirst','surgeonLast','procedure','cptCode','dateCreated','positionNotes','etSize','extPlan','extCriteria','airwayNotes','accessNotes','csfParams','monitorNotes','premedNotes','inductionNotes','maintNotes','ponvNotes','blocksNotes','intraopNotes','hemoNotes','equipNotes','keyConcerns','generalNotes','submitterFirst','submitterLast'];
+
+function collect(){
+  const f={};
+  TEXT_IDS.forEach(id=>f[id]=g(id));
+  Object.keys(sel).forEach(k=>f[k]=sel[k].slice());
+  f.institution=sel.institution[0]||'';
+  f.position=sel.position[0]||'';
+  return f;
+}
+
+function restore(f){
+  TEXT_IDS.forEach(id=>{const e=document.getElementById(id);if(e)e.value=f[id]||'';});
+  Object.keys(sel).forEach(k=>{
+    let v=f[k];
+    if(k==='institution'||k==='position')v=(typeof f[k]==='string')?(f[k]?[f[k]]:[]):(f[k]||[]);
+    sel[k]=Array.isArray(v)?v.slice():[];
+  });
+  Object.keys(sel).forEach(k=>{autoOn[k].clear();userOff[k].clear();});
+  paintPills();
+  applyLinks(false);          // a saved card stays internally consistent
+  document.getElementById('etSize').value=f.etSize||'';
+  onExtPlan();updateHeader();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Flat field map — used by Excel, comparison, and JSON
+   ═══════════════════════════════════════════════════════════════════════ */
+const XF=[
+  ['Surgeon First',f=>f.surgeonFirst],['Surgeon Last',f=>f.surgeonLast],['Procedure',f=>f.procedure],['CPT Code',f=>f.cptCode],
+  ['Institution',f=>f.institution],['Date Created',f=>f.dateCreated],
+  ['Technique',f=>j(f.technique)],['Position',f=>f.position],['Position Notes',f=>f.positionNotes],
+  ['Airway Device',f=>j(f.airway)],['Tape Preference',f=>j(f.tapePref)],['Tube / LMA Size',f=>f.etSize],
+  ['Extubation Plan',f=>f.extPlan],['Extubation Criteria',f=>f.extCriteria],['Airway Notes',f=>f.airwayNotes],
+  ['Peripheral Access',f=>j(f.access)],['Invasive Lines',f=>j(f.lines)],['Access Notes',f=>f.accessNotes],
+  ['Monitoring',f=>j(f.monitoring)],['Neuromonitoring',f=>j(f.neuromon)],['CSF Drain Parameters',f=>f.csfParams],['Monitoring Notes',f=>f.monitorNotes],
+  ['Premedications',f=>j(f.premeds)],['Premed Notes',f=>f.premedNotes],
+  ['Induction',f=>j(f.induction)],['Induction Notes',f=>f.inductionNotes],
+  ['Maintenance',f=>j(f.maint)],['Adjunct Infusions',f=>j(f.tiva)],['Maintenance Notes',f=>f.maintNotes],
+  ['PONV Prophylaxis',f=>j(f.ponv)],['PONV Notes',f=>f.ponvNotes],
+  ['Regional Blocks',f=>j(f.blocks)],['Regional Notes',f=>f.blocksNotes],
+  ['Intraop Medications',f=>j(f.intraop)],['Intraop Notes',f=>f.intraopNotes],
+  ['Fluid Strategy',f=>j(f.fluids)],['Hemodynamic Targets',f=>j(f.hemo)],['Hemodynamic Notes',f=>f.hemoNotes],
+  ['NMB Reversal',f=>j(f.reversal)],
+  ['Equipment',f=>j(f.equip)],['Equipment Notes',f=>f.equipNotes],
+  ['Key Concerns',f=>f.keyConcerns],['General Notes',f=>f.generalNotes],
+  ['Submitted By',f=>[f.submitterFirst,f.submitterLast].filter(Boolean).join(' ')],
+];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Shared section model — used by print and email
+   ═══════════════════════════════════════════════════════════════════════ */
+function catRows(cats,picked){
+  return cats.map(cat=>{
+    const p=cat.items.filter(i=>picked.indexOf(i)>-1);
+    return p.length?[cat.label,p.join(', ')]:null;
+  }).filter(Boolean);
+}
+function surgeonName(f){
+  const n=['Dr.',f.surgeonFirst,f.surgeonLast].filter(x=>x&&x!=='Dr.').join(' ');
+  return n||'—';
+}
+function sections(f){
+  return [
+    {t:'Anesthesia Technique',col:'L',rows:[['Technique',j(f.technique)]]},
+    {t:'Positioning',col:'L',rows:[['Position',f.position],['Notes',f.positionNotes]]},
+    {t:'Airway',col:'L',rows:[['Device',j(f.airway)],['Tape Preference',j(f.tapePref)],['Tube / LMA Size',f.etSize],['Extubation Plan',f.extPlan],['Extubation Criteria',f.extCriteria],['Notes',f.airwayNotes]]},
+    {t:'Vascular Access',col:'L',rows:[['Peripheral',j(f.access)],['Invasive Lines',j(f.lines)],['Notes',f.accessNotes]]},
+    {t:'Monitoring',col:'L',rows:[['Monitors',j(f.monitoring)],['Neuromonitoring',j(f.neuromon)],['CSF Drain',f.csfParams],['Notes',f.monitorNotes]]},
+    {t:'Equipment',col:'L',rows:catRows(EQUIP_CATS,f.equip).concat([['Notes',f.equipNotes]])},
+    {t:'Premedications',col:'R',rows:[['Medications',j(f.premeds)],['Notes',f.premedNotes]]},
+    {t:'Induction',col:'R',rows:[['Considerations',j(f.induction)],['Notes',f.inductionNotes]]},
+    {t:'Maintenance',col:'R',rows:[['Technique',j(f.maint)],['Adjunct Infusions',j(f.tiva)],['Notes',f.maintNotes]]},
+    {t:'PONV Prophylaxis',col:'R',rows:[['Agents',j(f.ponv)],['Notes',f.ponvNotes]]},
+    {t:'Regional Anesthesia',col:'R',rows:[['Blocks / Neuraxial',j(f.blocks)],['Notes',f.blocksNotes]]},
+    {t:'Intraoperative Medications',col:'R',rows:catRows(INTRAOP_CATS,f.intraop).concat([['Notes',f.intraopNotes]])},
+    {t:'Fluids & Hemodynamics',col:'R',rows:[['Fluid Strategy',j(f.fluids)],['Targets',j(f.hemo)],['Notes',f.hemoNotes]]},
+    {t:'NMB Reversal',col:'R',rows:[['Plan',j(f.reversal)]]},
+    {t:'Key Concerns & Notes',col:'F',rows:[['Key Concerns',f.keyConcerns],['General Notes',f.generalNotes]]},
+  ].map(s=>({...s,rows:s.rows.filter(r=>r[1]&&String(r[1]).trim())})).filter(s=>s.rows.length);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Excel
+   ═══════════════════════════════════════════════════════════════════════ */
+function rowFor(f){
+  const row={};
+  XF.forEach(([label,fn])=>row[label]=fn(f)||'');
+  return row;
+}
+function buildXLSX(f){
+  const row=rowFor(f);
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.json_to_sheet([row]);
+  ws['!cols']=Object.keys(row).map(k=>({wch:Math.min(45,Math.max(14,k.length+4))}));
+  XLSX.utils.book_append_sheet(wb,ws,'Preference Card');
+  const fn=`${(f.surgeonLast||'Card').replace(/\s/g,'_')}_${(f.procedure||'Procedure').replace(/\s+/g,'_')}_${f.dateCreated}.xlsx`;
+  return{wb,fn};
+}
+function exportXLSX(){const f=collect();const{wb,fn}=buildXLSX(f);XLSX.writeFile(wb,fn);showToast('Exported '+fn);}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Email
+   ═══════════════════════════════════════════════════════════════════════ */
+function sendEmail(){
+  const f=collect();
+  const to=document.getElementById('recipientEmail').value.trim();
+  if(!to){showToast('Enter a recipient email first');return;}
+  const{wb,fn}=buildXLSX(f);XLSX.writeFile(wb,fn);
+  const dr=surgeonName(f);
+  const subj=`Anesthesia Preference Card – ${f.procedure||'TBD'} – ${dr}`;
+  const NL='\r\n';
+  const head=['ANESTHESIA PREFERENCE CARD','===========================',
+    `Surgeon:      ${dr}`,
+    `Procedure:    ${f.procedure||'—'}${f.cptCode?' (CPT '+f.cptCode+')':''}`,
+    `Institution:  ${f.institution||'—'}`,
+    `Created:      ${f.dateCreated||'—'}`,''].filter(Boolean);
+  const body=[];
+  sections(f).forEach(s=>{
+    body.push(s.t.toUpperCase(),'—');
+    s.rows.forEach(r=>body.push(`${(r[0]+':').padEnd(14)}${r[1]}`));
+    body.push('');
+  });
+  const foot=['— Tony Kim, MD  |  Created '+(f.dateCreated||''),
+    `Submitted by: ${[f.submitterFirst,f.submitterLast].filter(Boolean).join(' ')||'—'}  |  Pending review.`,
+    `[Attachments: (1) ${fn}  (2) PDF – save from the print window]`];
+  const text=head.concat(body,foot).join(NL);
+
+  const pw=window.open('','_blank','width=870,height=1060');
+  if(pw){pw.document.write(buildPrintHTML(f));pw.document.close();pw.focus();setTimeout(()=>pw.print(),400);}
+  setTimeout(()=>{
+    window.location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(text)}`;
+  },800);
+  showToast('Excel downloaded and print window opened — attach both');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Print card
+   ═══════════════════════════════════════════════════════════════════════ */
+function buildPrintHTML(f){
+  const T='#1B3669',TL='#EBF0F8',TD='#0D1E3D',TB='#B0C4DE';
+  const surgeon=surgeonName(f);
+  function block(s){
+    let i=0;
+    const rows=s.rows.map(r=>{
+      const bg=(i++)%2===0?'white':TL;
+      return `<tr style="background:${bg}"><td style="padding:5px 8px 5px 11px;font-size:9px;font-weight:700;color:${TD};text-transform:uppercase;letter-spacing:0.04em;width:118px;vertical-align:top;border-right:1px solid ${TB}">${esc(r[0])}</td><td style="padding:5px 11px 5px 8px;font-size:10.5px;color:#111;line-height:1.5">${esc(r[1]).replace(/\n/g,'<br>')}</td></tr>`;
+    }).join('');
+    return `<div style="margin-bottom:10px;border:1px solid ${TB};border-radius:5px;overflow:hidden;page-break-inside:avoid"><div style="background:${T};padding:5px 11px"><span style="color:white;font-size:9.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">${esc(s.t)}</span></div><table style="width:100%;border-collapse:collapse">${rows}</table></div>`;
+  }
+  const S=sections(f);
+  const L=S.filter(s=>s.col==='L').map(block).join('');
+  const R=S.filter(s=>s.col==='R').map(block).join('');
+  const F=S.filter(s=>s.col==='F').map(block).join('');
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Anesthesia Preference Card</title><style>@page{margin:0.45in;size:letter}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:white}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>
+<div style="background:${T};padding:12px 15px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div><div style="color:white;font-size:17px;font-weight:700">Anesthesia Preference Card</div><div style="color:rgba(255,255,255,0.8);font-size:11.5px;margin-top:3px">${esc(f.procedure||'Procedure TBD')}${f.cptCode?' (CPT '+esc(f.cptCode)+')':''} &nbsp;·&nbsp; ${esc(surgeon)}</div></div>
+  <div style="background:rgba(255,255,255,0.15);border-radius:4px;padding:5px 10px;text-align:right;flex-shrink:0;margin-left:14px"><div style="color:white;font-size:9.5px;line-height:1.85"><b>Institution:</b> ${esc(f.institution||'—')}<br><b>Technique:</b> ${esc(j(f.technique)||'—')}<br><b>Created:</b> ${esc(f.dateCreated||'—')}</div></div>
+</div>
+<table style="width:100%;border-collapse:collapse"><tr style="vertical-align:top">
+  <td style="width:45%;padding-right:7px">${L}</td>
+  <td style="width:55%;padding-left:5px">${R}</td>
+</tr></table>
+${F}
+<div style="margin-top:10px;padding-top:6px;border-top:1.5px solid ${TB};display:flex;justify-content:space-between"><span style="font-size:9px;color:#6b7280;font-weight:600">Tony Kim, MD &nbsp;·&nbsp; Submitted by: ${esc([f.submitterFirst,f.submitterLast].filter(Boolean).join(' ')||'—')} &nbsp;·&nbsp; All submissions are reviewed.</span><span style="font-size:9px;color:#6b7280">Created ${esc(f.dateCreated||'')}</span></div>
+</body></html>`;
+}
+
+function doPrint(){const w=window.open('','_blank','width=870,height=1060');if(!w){showToast('Allow pop-ups to print');return;}w.document.write(buildPrintHTML(collect()));w.document.close();w.focus();setTimeout(()=>w.print(),400);}
+function openPreview(){document.getElementById('previewFrame').srcdoc=buildPrintHTML(collect());document.getElementById('modal').classList.add('open');}
+function closePreview(){document.getElementById('modal').classList.remove('open');}
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closePreview();});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Card library — saved on this device
+   ═══════════════════════════════════════════════════════════════════════ */
+const LIB_KEY='apc-library';
+let cmpPick=[];
+function libLoad(){try{return JSON.parse(localStorage.getItem(LIB_KEY)||'[]');}catch(e){return[];}}
+function libStore(a){try{localStorage.setItem(LIB_KEY,JSON.stringify(a));return true;}catch(e){showToast('This browser blocked local storage');return false;}}
+
+function saveToLibrary(){
+  const f=collect();
+  if(!f.surgeonLast&&!f.procedure){showToast('Add a surgeon or procedure before saving');return;}
+  const lib=libLoad();
+  const dup=lib.find(c=>c.data.surgeonLast===f.surgeonLast&&c.data.procedure===f.procedure&&c.data.institution===f.institution);
+  if(dup&&confirm('A card for this surgeon, procedure, and institution already exists. Replace it?')){
+    dup.data=f;dup.savedAt=new Date().toISOString();dup.status='Pending review';
+  }else if(dup){
+    return;
+  }else{
+    lib.unshift({id:'c'+Date.now(),savedAt:new Date().toISOString(),status:'Pending review',data:f});
+  }
+  if(libStore(lib))showToast('Saved to library');
+}
+
+function openLib(){cmpPick=[];libBack();libFilters();libRender();document.getElementById('libModal').classList.add('open');}
+function closeLib(){document.getElementById('libModal').classList.remove('open');}
+document.getElementById('libModal').addEventListener('click',e=>{if(e.target.id==='libModal')closeLib();});
+
+function libFilters(){
+  const lib=libLoad();
+  const insts=Array.from(new Set(lib.map(c=>c.data.institution).filter(Boolean))).sort();
+  const surgs=Array.from(new Set(lib.map(c=>[c.data.surgeonFirst,c.data.surgeonLast].filter(Boolean).join(' ')).filter(Boolean))).sort();
+  const iSel=document.getElementById('libInst'),sSel=document.getElementById('libSurg');
+  const iv=iSel.value,sv=sSel.value;
+  iSel.innerHTML='<option value="">All institutions</option>'+insts.map(i=>`<option>${esc(i)}</option>`).join('');
+  sSel.innerHTML='<option value="">All surgeons</option>'+surgs.map(s=>`<option>${esc(s)}</option>`).join('');
+  iSel.value=iv;sSel.value=sv;
+}
+
+function libFiltered(){
+  const q=document.getElementById('libSearch').value.trim().toLowerCase();
+  const inst=document.getElementById('libInst').value;
+  const surg=document.getElementById('libSurg').value;
+  const st=document.getElementById('libStatus').value;
+  return libLoad().filter(c=>{
+    const d=c.data;
+    const name=[d.surgeonFirst,d.surgeonLast].filter(Boolean).join(' ');
+    if(inst&&d.institution!==inst)return false;
+    if(surg&&name!==surg)return false;
+    if(st&&c.status!==st)return false;
+    if(!q)return true;
+    const hay=XF.map(([l,fn])=>fn(d)).join(' ').toLowerCase();
+    return hay.indexOf(q)>-1;
+  });
+}
+
+function libRender(){
+  const list=document.getElementById('libList');
+  const cards=libFiltered();
+  if(!cards.length){
+    const empty=libLoad().length===0;
+    list.innerHTML=`<div class="lib-empty">${empty?'No cards saved yet. Build a card and choose <strong>Save to library</strong> on the last tab.':'No cards match these filters.'}</div>`;
+  }else{
+    list.innerHTML=cards.map(c=>{
+      const d=c.data;
+      const name=[d.surgeonFirst,d.surgeonLast].filter(Boolean).join(' ');
+      const picked=cmpPick.indexOf(c.id)>-1;
+      return `<div class="lib-card${picked?' picked':''}">
+        <input class="lib-check" type="checkbox" ${picked?'checked':''} onchange="libPick('${c.id}')" aria-label="Select for comparison">
+        <div class="lib-main">
+          <div class="lib-title">${esc(d.procedure||'Untitled procedure')}</div>
+          <div class="lib-meta">${esc(name?'Dr. '+name:'No surgeon')} · ${esc(d.institution||'No institution')} · saved ${esc(c.savedAt.slice(0,10))}</div>
+          <div class="lib-meta" style="margin-top:5px"><span class="badge ${c.status==='Vetted'?'vetted':'pending'}">${esc(c.status)}</span></div>
+          <div class="lib-acts">
+            <button class="btn btn-s btn-p" onclick="libOpen('${c.id}')">Open</button>
+            <button class="btn btn-s btn-o" onclick="libToggleStatus('${c.id}')">${c.status==='Vetted'?'Mark pending':'Mark vetted'}</button>
+            <button class="btn btn-s" onclick="libDelete('${c.id}')">Delete</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  const n=cmpPick.length;
+  document.getElementById('cmpBtn').disabled=n!==2;
+  document.getElementById('cmpCount').textContent=n===0?'Tick two cards to compare them side by side.':n===1?'One selected — pick one more.':'Two selected.';
+}
+
+function libPick(id){
+  const i=cmpPick.indexOf(id);
+  if(i>-1)cmpPick.splice(i,1);
+  else{if(cmpPick.length>=2)cmpPick.shift();cmpPick.push(id);}
+  libRender();
+}
+function libOpen(id){
+  const c=libLoad().find(x=>x.id===id);if(!c)return;
+  restore(c.data);closeLib();goTab(0);showToast('Card loaded');
+}
+function libToggleStatus(id){
+  const lib=libLoad();const c=lib.find(x=>x.id===id);if(!c)return;
+  c.status=c.status==='Vetted'?'Pending review':'Vetted';
+  if(libStore(lib))libRender();
+}
+function libDelete(id){
+  if(!confirm('Delete this card from the library?'))return;
+  const lib=libLoad().filter(x=>x.id!==id);
+  cmpPick=cmpPick.filter(x=>x!==id);
+  if(libStore(lib)){libFilters();libRender();showToast('Card deleted');}
+}
+
+function libCompare(){
+  const lib=libLoad();
+  const a=lib.find(x=>x.id===cmpPick[0]),b=lib.find(x=>x.id===cmpPick[1]);
+  if(!a||!b)return;
+  const hdr=c=>{
+    const d=c.data;const n=[d.surgeonFirst,d.surgeonLast].filter(Boolean).join(' ');
+    return `${esc(d.procedure||'Untitled')}<br><span style="font-weight:400;opacity:0.85">${esc(n?'Dr. '+n:'—')} · ${esc(d.institution||'—')}</span>`;
+  };
+  const rows=XF.map(([label,fn])=>{
+    const va=fn(a.data)||'—',vb=fn(b.data)||'—';
+    if(va==='—'&&vb==='—')return '';
+    const diff=va!==vb?' class="diff"':'';
+    return `<tr${diff}><td class="lbl">${esc(label)}</td><td>${esc(va)}</td><td>${esc(vb)}</td></tr>`;
+  }).join('');
+  document.getElementById('cmpTable').innerHTML=
+    `<table class="cmp-table"><thead><tr><th>Field</th><th>${hdr(a)}</th><th>${hdr(b)}</th></tr></thead><tbody>${rows}</tbody></table>
+     <div style="font-size:11.5px;color:var(--txm);margin-top:10px">Shaded rows differ between the two cards.</div>`;
+  document.getElementById('libBrowse').style.display='none';
+  document.getElementById('libCompareView').style.display='block';
+  document.getElementById('libHdrTitle').textContent='Side-by-side comparison';
+}
+function libBack(){
+  document.getElementById('libBrowse').style.display='block';
+  document.getElementById('libCompareView').style.display='none';
+  document.getElementById('libHdrTitle').textContent='Card library';
+}
+
+function libExportAll(){
+  const cards=libFiltered();
+  if(!cards.length){showToast('No cards to export');return;}
+  const rows=cards.map(c=>Object.assign({'Status':c.status,'Saved':c.savedAt.slice(0,10)},rowFor(c.data)));
+  const wb=XLSX.utils.book_new();const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.min(45,Math.max(14,k.length+4))}));
+  XLSX.utils.book_append_sheet(wb,ws,'Preference Cards');
+  XLSX.writeFile(wb,`Preference_Cards_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast(`Exported ${cards.length} card${cards.length>1?'s':''}`);
+}
+function libExportJSON(){
+  const data=JSON.stringify({exported:new Date().toISOString(),cards:libLoad()},null,2);
+  const url=URL.createObjectURL(new Blob([data],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download=`preference_cards_${new Date().toISOString().slice(0,10)}.json`;a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup file downloaded');
+}
+function libImportJSON(ev){
+  const file=ev.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const parsed=JSON.parse(r.result);
+      const incoming=Array.isArray(parsed)?parsed:parsed.cards;
+      if(!Array.isArray(incoming))throw new Error('bad shape');
+      const lib=libLoad();
+      const ids=new Set(lib.map(c=>c.id));
+      let added=0;
+      incoming.forEach(c=>{
+        if(!c||!c.data)return;
+        if(ids.has(c.id))c.id='c'+Date.now()+Math.floor(Math.random()*1000);
+        c.status=c.status||'Pending review';
+        lib.push(c);added++;
+      });
+      if(libStore(lib)){libFilters();libRender();showToast(`Imported ${added} card${added===1?'':'s'}`);}
+    }catch(e){showToast('That file is not a card backup');}
+    ev.target.value='';
+  };
+  r.readAsText(file);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Misc
+   ═══════════════════════════════════════════════════════════════════════ */
+function clearForm(){
+  if(!confirm('Clear all fields and start over?'))return;
+  TEXT_IDS.forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('dateCreated').value=new Date().toISOString().slice(0,10);
+  document.getElementById('recipientEmail').value='tony.kim@bcm.edu';
+  Object.keys(sel).forEach(k=>{sel[k]=[];autoOn[k].clear();userOff[k].clear();});
+  paintPills();
+  refreshSizes();onExtPlan();onMonitoring();updateHeader();goTab(0);
+}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+</script>
+</body>
+</html>
